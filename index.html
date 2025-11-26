@@ -13,6 +13,7 @@
     <!-- Bibliotecas Externas (CDNs) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/TextPlugin.min.js"></script>
     
     <style>
         /* --- RESET & BASE --- */
@@ -83,6 +84,107 @@
             color: var(--c-gold);
             font-size: 1.2rem;
             font-weight: bold;
+        }
+
+        /* --- INTRO OVERLAY (CARREGAMENTO) --- */
+        #intro-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--c-black);
+            z-index: 5000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .intro-logo-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vw; /* Logo Grande */
+            max-width: 400px;
+            height: auto;
+            opacity: 0; /* Começa invisível */
+            z-index: 5000; /* Atrás do texto de impacto (5001) */
+        }
+
+        .intro-logo-img {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 0 30px rgba(212, 175, 55, 0.4));
+        }
+
+        .intro-text-wrapper {
+            position: relative;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            z-index: 5002;
+        }
+
+        .intro-text {
+            font-family: var(--font-secondary);
+            font-size: 1.2rem;
+            color: var(--c-silver);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            opacity: 0;
+        }
+
+        .intro-impact {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(5); /* Escala inicial para efeito */
+            width: 100%;
+            text-align: center;
+            font-family: var(--font-primary);
+            font-size: 3.5rem; /* Ajustado para mobile */
+            font-weight: 700;
+            color: var(--c-white);
+            /* Sombra forte para leitura sobre a logo */
+            text-shadow: 
+                0 0 10px #000, 
+                0 0 20px #000, 
+                0 0 40px var(--c-gold);
+            opacity: 0;
+            line-height: 1.1;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 5001; /* Na frente da logo */
+        }
+
+        /* Cursor piscante específico para a intro */
+        .intro-cursor {
+            display: inline-block;
+            width: 5px;
+            height: 3rem;
+            background-color: var(--c-gold);
+            margin-left: 5px;
+            vertical-align: middle;
+            animation: blink 0.5s infinite;
+        }
+
+        /* Efeito de flash na tela */
+        .flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 5005; /* Acima de tudo */
         }
 
         /* --- APP CONTAINER (MOBILE) --- */
@@ -250,7 +352,7 @@
             height: 60px; /* Apenas espaço, sem botão */
         }
 
-        /* Logo SVG Simplificado para o Gate */
+        /* Logo SVG Simplificado para o Gate (fallback do timao.png se falhar) */
         .cp-logo-svg {
             width: 100%;
             height: 100%;
@@ -261,11 +363,12 @@
         @media screen and (min-width: 1025px) {
             #desktop-gate { display: flex !important; }
             #app-container { display: none !important; }
+            #intro-overlay { display: none !important; } /* Esconde intro no desktop */
         }
 
         @media screen and (max-width: 1024px) {
             #desktop-gate { display: none; }
-            #app-container { display: flex; }
+            /* #app-container controlado via JS após intro */
         }
 
     </style>
@@ -288,6 +391,24 @@
             <br>
             <h2 style="color: white; font-family: 'Oswald'; font-size: 3rem;">VAI CORINTHIANS!</h2>
         </div>
+    </div>
+
+    <!-- INTRO OVERLAY (TELA DE CARREGAMENTO) -->
+    <div id="intro-overlay">
+        <!-- TEXTOS NARRATIVOS (Centro) -->
+        <div class="intro-text-wrapper">
+            <div class="intro-text" id="intro-text-1">A PAIXÃO NÃO TEM FRONTEIRAS</div>
+        </div>
+
+        <!-- LOGO LOCAL (timao.png) - Aparece só no clímax -->
+        <div class="intro-logo-container" id="intro-logo">
+            <img src="timao.png" alt="Corinthians" class="intro-logo-img">
+        </div>
+        
+        <!-- O GRITO FINAL (Texto sobre a logo) -->
+        <div class="intro-impact" id="final-impact"><span id="impact-text-span"></span><span class="intro-cursor"></span></div>
+        
+        <div class="flash-overlay" id="flash-effect"></div>
     </div>
 
     <!-- APP MOBILE -->
@@ -320,14 +441,16 @@
     </div>
 
     <script>
-        // --- 1. DADOS: 500 IDIOMAS ---
+        gsap.registerPlugin(TextPlugin);
+
+        // LISTA COMPLETA DE 500 IDIOMAS
         const translations = [
             { id: 1, lang: "Mandarim (Chinês)", text: "加油，科林蒂安！", detail: "Jiāyóu, Kēlīndì'ān!" },
             { id: 2, lang: "Espanhol", text: "¡Vamos Corinthians!", detail: "Vámos Coríntians" },
             { id: 3, lang: "Inglês", text: "Go Corinthians!", detail: "Gô Coríntians" },
             { id: 4, lang: "Hindi", text: "आगे बढ़ो, कोरिनथियंस!", detail: "Aage baṛho, Korinthiyans!" },
             { id: 5, lang: "Bengali", text: "চলো করিন্থিয়ান্স!", detail: "Chalo Korinthians!" },
-            { id: 6, lang: "Português", text: "VAI CORINTHIANS!", detail: "A Fiel está contigo!" },
+            { id: 6, lang: "Português", text: "VAI CORINTHIANS!", detail: "(O original)" },
             { id: 7, lang: "Russo", text: "Давай, Коринтианс!", detail: "Davay, Korintians!" },
             { id: 8, lang: "Japonês", text: "行け、コリンチャンス！", detail: "Ike, Korinchansu!" },
             { id: 9, lang: "Punjabi Ocidental", text: "ਚਲੋ ਕੋਰੀਨਥੀਅਨਜ਼!", detail: "Chalo Korinthians!" },
@@ -344,7 +467,7 @@
             { id: 20, lang: "Urdu", text: "چلو کورنتھینز!", detail: "Chalo Korinthians!" },
             { id: 21, lang: "Javanês", text: "Ayo Corinthians!", detail: "Áio Coríntians" },
             { id: 22, lang: "Italiano", text: "Forza Corinthians!", detail: "Fôrza Coríntians" },
-            { id: 23, lang: "Egípcio (Árabe)", text: "يلا يا كورينثيانز!", detail: "Yalla ya Kūrīnthyāns!" },
+            { id: 23, lang: "Egípcio Coloquial (Árabe)", text: "يلا يا كورينثيانز!", detail: "Yalla ya Kūrīnthyāns!" },
             { id: 24, lang: "Persa Iraniano", text: "به پیش کورینتیانس!", detail: "Be pish Korintiyāns!" },
             { id: 25, lang: "Guzerate", text: "ચાલો કોરીન્થિયન્સ!", detail: "Chālo Korinthians!" },
             { id: 26, lang: "Bhojpuri", text: "आगे बढ़ कोरिनथियंस!", detail: "Aage baṛho Korinthians!" },
@@ -358,11 +481,11 @@
             { id: 34, lang: "Polonês", text: "Naprzód Corinthians!", detail: "Nápshud Coríntians" },
             { id: 35, lang: "Iorubá", text: "Jáde Corinthians!", detail: "Jáde Coríntians" },
             { id: 36, lang: "Hakka (Chinês)", text: "加油，哥林多人!", detail: "Ga yû, Kôlîndwui!" },
-            { id: 37, lang: "Tagalo", text: "Sige, Corinthians!", detail: "Sigue Coríntians" },
+            { id: 37, lang: "Tagalo (Filipino)", text: "Sige, Corinthians!", detail: "Sigue Coríntians" },
             { id: 38, lang: "Ucraniano", text: "Вперед, Корінтіанс!", detail: "Vpered, Korintians!" },
             { id: 39, lang: "Sindhi", text: "چئو ڪورينٿينز!", detail: "Chā’ō Kōrīnthīnz!" },
             { id: 40, lang: "Cebuano", text: "Sige na, Corinthians!", detail: "Sigue na Coríntians" },
-            { id: 41, lang: "Fula", text: "Yeeso Corinthians!", detail: "Yêssô Coríntians" },
+            { id: 41, lang: "Fula (Fulfulde)", text: "Yeeso Corinthians!", detail: "Yêssô Coríntians" },
             { id: 42, lang: "Romeno", text: "Hai, Corinthians!", detail: "Rái Coríntians" },
             { id: 43, lang: "Ibo", text: "Gaa Corinthians!", detail: "Gáa Coríntians" },
             { id: 44, lang: "Malaio", text: "Ayuh Corinthians!", detail: "Áiu Coríntians" },
@@ -377,18 +500,18 @@
             { id: 53, lang: "Oromo", text: "Imalli Corinthians!", detail: "Imali Coríntians" },
             { id: 54, lang: "Maithili", text: "आगाँ बढ़ू कोरिनथियंस!", detail: "Āgām baṛhū Korinthiyans!" },
             { id: 55, lang: "Gan (Chinês)", text: "加油，科林斯!", detail: "Jiāyóu, Kēlīnsī!" },
-            { id: 56, lang: "Haitiano", text: "Ale Corinthians!", detail: "Alê Coríntians" },
+            { id: 56, lang: "Crioulo Haitiano", text: "Ale Corinthians!", detail: "Alê Coríntians" },
             { id: 57, lang: "Servo-Croata", text: "Napred Korintijans!", detail: "Nápred Coríntians" },
             { id: 58, lang: "Madurês", text: "Ayo Corinthians!", detail: "Áio Coríntians" },
             { id: 59, lang: "Cingalês", text: "ඉදිරියට කොරින්තියන්ස්!", detail: "Idiriyaṭa Korintiyans!" },
             { id: 60, lang: "Cazaque", text: "Алға Corinthians!", detail: "Alğa Korïntians!" },
-            { id: 61, lang: "Min Nan", text: "哥林斯加油!", detail: "Kō-lîm-su ka-iû!" },
-            { id: 62, lang: "Min Bei", text: "加油，科林斯!", detail: "Jiāyóu, Kēlīnsī!" },
+            { id: 61, lang: "Min Nan (Chinês)", text: "哥林斯加油!", detail: "Kō-lîm-su ka-iû!" },
+            { id: 62, lang: "Min Bei (Chinês)", text: "加油，科林斯!", detail: "Jiāyóu, Kēlīnsī!" },
             { id: 63, lang: "Zhuang", text: "Vah gyaeujg Corindiens!", detail: "Vah guêiuch Coríndiens" },
             { id: 64, lang: "Khmer", text: "តោះ កូរិនថៀនស៍!", detail: "Táh Kōrinthiəns!" },
             { id: 65, lang: "Turcomano", text: "Öňe Corinthians!", detail: "Ônie Coríntians" },
             { id: 66, lang: "Somáli", text: "Hore u soco Corinthians!", detail: "Hôre u sôcô Coríntians" },
-            { id: 67, lang: "Chin", text: "Fek Corinthians!", detail: "Fêk Coríntians" },
+            { id: 67, lang: "Chin (Birmânia/Índia)", text: "Fek Corinthians!", detail: "Fêk Coríntians" },
             { id: 68, lang: "Assamês", text: "আগুৱাই যাওক কোৰিঅনচ!", detail: "Āgu'āi yā'uka Kōriañca!" },
             { id: 69, lang: "Marvari", text: "आगे चालो कोरिनथियंस!", detail: "Āgē chālō Korinthians!" },
             { id: 70, lang: "Magahi", text: "आगू बढ़ कोरिनथियंस!", detail: "Āgū baṛh Korinthiyans!" },
@@ -402,7 +525,7 @@
             { id: 78, lang: "Zulu", text: "Hamba phambili Corinthians!", detail: "Hâmba fâmbili Coríntians" },
             { id: 79, lang: "Quíchua", text: "Purinayan Corinthians!", detail: "Purínaiân Coríntians" },
             { id: 80, lang: "Sueco", text: "Kom igen Corinthians!", detail: "Cômm igên Coríntians" },
-            { id: 81, lang: "Min Dong", text: "加油，哥林斯!", detail: "Ga-iu, Gŏ̤-lìng-sĭ!" },
+            { id: 81, lang: "Min Dong (Chinês)", text: "加油，哥林斯!", detail: "Ga-iu, Gŏ̤-lìng-sĭ!" },
             { id: 82, lang: "Uigur", text: "ئالغا كورىنتىئانس!", detail: "Algha Korintians!" },
             { id: 83, lang: "Balúchi", text: "برو کورنتینز!", detail: "Buro Korintīnz!" },
             { id: 84, lang: "Bielorrusso", text: "Наперад, Карынтыянс!", detail: "Naperad, Karyntyyans!" },
@@ -410,10 +533,10 @@
             { id: 86, lang: "Gilaki", text: "پیش کورینتیانس!", detail: "Pīsh Korintīāns!" },
             { id: 87, lang: "Chona", text: "Enda Corinthians!", detail: "Ênda Coríntians" },
             { id: 88, lang: "Quimbundu", text: "Yelele Corinthians!", detail: "Ielele Coríntians" },
-            { id: 89, lang: "Moré", text: "Yééé! Corinthians!", detail: "Iêêê Coríntians" },
+            { id: 89, lang: "Moré (Mossí)", text: "Yééé! Corinthians!", detail: "Iêêê Coríntians" },
             { id: 90, lang: "Balinês", text: "Maju Corinthians!", detail: "Máju Coríntians" },
             { id: 91, lang: "Hmong", text: "Mus Corinthians!", detail: "Mú Coríntians" },
-            { id: 92, lang: "Mauriciano", text: "Alé Corinthians!", detail: "Alê Coríntians" },
+            { id: 92, lang: "Crioulo Mauriciano", text: "Alé Corinthians!", detail: "Alê Coríntians" },
             { id: 93, lang: "Concani", text: "फुडें वच कोरिंथियन!", detail: "Fuḍēm vaca kōrinthiyana!" },
             { id: 94, lang: "Zaza", text: "Şo Corinthians!", detail: "Shó Coríntians" },
             { id: 95, lang: "Sidamo", text: "Baasi Corinthians!", detail: "Báasi Coríntians" },
@@ -422,406 +545,406 @@
             { id: 98, lang: "Bambara", text: "Doni Corinthians!", detail: "Dôni Coríntians" },
             { id: 99, lang: "Gikuyu", text: "Thiĩ na mbere Corinthians!", detail: "Thíi nâ mbêre Coríntians" },
             { id: 100, lang: "Tigrínia", text: "ቅድሚት ኮሪንቲያንስ!", detail: "Ḳədmit Kōrīntīyans!" },
-            { id: 101, lang: "Chewa (Chichewa)", text: "Pitani Corinthians", detail: "(Pitani = Vá/Vão)" },
+            { id: 101, lang: "Chewa (Chichewa)", text: "Pitani Corinthians", detail: "Pitani = Vá/Vão" },
             { id: 102, lang: "Tibetano", text: "ཀོ་རིན་ཐི་ཨན་སི་འགྲོ།", detail: "Ko-rin-thi-an-si 'gro" },
-            { id: 103, lang: "Tsonga", text: "Famba Corinthians", detail: "(Famba = Vá)" },
-            { id: 104, lang: "Tswana", text: "Tsamaya Corinthians", detail: "(Tsamaya = Vá)" },
-            { id: 105, lang: "Dinamarquês", text: "Kom så Corinthians", detail: "(Kom så = Vamos lá/Vai!)" },
-            { id: 106, lang: "Eslovaco", text: "Do toho Corinthians", detail: "(Do toho = Mãos à obra/Vai!)" },
-            { id: 107, lang: "Lituano", text: "Pirmyn, Corinthians!", detail: "(Pirmyn = Avante/Pra frente)" },
+            { id: 103, lang: "Tsonga", text: "Famba Corinthians", detail: "Famba = Vá" },
+            { id: 104, lang: "Tswana", text: "Tsamaya Corinthians", detail: "Tsamaya = Vá" },
+            { id: 105, lang: "Dinamarquês", text: "Kom så Corinthians", detail: "Kom så = Vamos lá" },
+            { id: 106, lang: "Eslovaco", text: "Do toho Corinthians", detail: "Do toho = Vai!" },
+            { id: 107, lang: "Lituano", text: "Pirmyn, Corinthians!", detail: "Pirmyn = Avante" },
             { id: 108, lang: "Nepal Bhasa (Newari)", text: "कोरिन्थियन्स वने", detail: "Kōrinthiyans wanē" },
             { id: 109, lang: "Lao", text: "ໄປ ຄໍຣິນທຽນສ໌", detail: "Pai Korintian" },
-            { id: 110, lang: "Galego", text: "Vai, Corinthians!", detail: "(Igual ao português, 'Vai')" },
-            { id: 111, lang: "Catalão", text: "Endavant, Corinthians!", detail: "(Endavant = Avante/Pra frente)" },
-            { id: 112, lang: "Maltês", text: "Mur, Corinthians!", detail: "(Mur = Vá/Força)" },
+            { id: 110, lang: "Galego", text: "Vai, Corinthians!", detail: "Igual ao português" },
+            { id: 111, lang: "Catalão", text: "Endavant, Corinthians!", detail: "Endavant = Avante" },
+            { id: 112, lang: "Maltês", text: "Mur, Corinthians!", detail: "Mur = Vá/Força" },
             { id: 113, lang: "Armênio", text: "Գնա՛, Կորինթիանս", detail: "Gna', Korint'ians" },
             { id: 114, lang: "Tailandês Setentrional", text: "ໄປ ເກີລິນທຽນ", detail: "Pai Koelin thian" },
             { id: 115, lang: "Birmanês Shan", text: "ပိုင် ကိုရငျးတျငျး", detail: "Pai Ko Yintin" },
-            { id: 116, lang: "Aymara", text: "Corinthians sarxma", detail: "(Sarxma = Vá em frente/Avance)" },
-            { id: 117, lang: "Esloveno", text: "Naprej, Corinthians!", detail: "(Naprej = Pra frente/Avante)" },
-            { id: 118, lang: "Hiri Motu", text: "Corinthians lao!", detail: "(Lao = Vá)" },
-            { id: 119, lang: "Sotho do Norte", text: "Sepela Corinthians", detail: "(Sepela = Vá/Avance)" },
-            { id: 120, lang: "Fijiano", text: "Lako Corinthians", detail: "(Lako = Vá)" },
-            { id: 121, lang: "Galês", text: "Ewch Corinthians", detail: "(Ewch = Vá)" },
-            { id: 122, lang: "Islandês", text: "Áfram, Corinthians!", detail: "(Áfram = Avante/Pra frente)" },
-            { id: 123, lang: "Luxemburguês", text: "Géi Corinthians", detail: "(Géi = Vá)" },
-            { id: 124, lang: "Suaíli", text: "Nenda Corinthians", detail: "(Nenda = Vá)" },
-            { id: 125, lang: "Malaio (Indonésio)", text: "Pergi Corinthians", detail: "(Pergi = Vá/Siga)" },
-            { id: 126, lang: "Árabe do Saara Argelino", text: "يا كورينثيانز روح", detail: "Ya Kūrīnthiāns rūḥ" },
-            { id: 127, lang: "Waray-Waray", text: "Kadto Corinthians", detail: "(Kadto = Vá/Continue)" },
-            { id: 128, lang: "Hiligaynon", text: "Sige Corinthians", detail: "(Sige = Gíria para \"Vai, Força\")" },
-            { id: 129, lang: "Tcheco", text: "Pojď, Corinthians!", detail: "(Pojď = Vamos/Vai)" },
-            { id: 130, lang: "Norueguês", text: "Kom igjen Corinthians!", detail: "(Kom igjen = Vamos lá/Força!)" },
-            { id: 131, lang: "Basco", text: "Aurrera Corinthians!", detail: "(Aurrera = Avante/Pra frente)" },
-            { id: 132, lang: "Havaiano", text: "E hele Corinthians", detail: "(E hele = Vá)" },
-            { id: 133, lang: "Guarani", text: "Corinthians tereho", detail: "(Tereho = Você vá)" },
-            { id: 134, lang: "Tzotzil", text: "Corinthians bat", detail: "(Bat = Vá)" },
-            { id: 135, lang: "Twi", text: "Kɔ Corinthians", detail: "(Kɔ = Vá)" },
-            { id: 136, lang: "Wolof", text: "Demal Corinthians", detail: "(Demal = Vá)" },
-            { id: 137, lang: "Kabyle", text: "Argaz Corinthians", detail: "(Argaz = Vá/Avance)" },
-            { id: 138, lang: "Sotho do Sul", text: "Tloha Corinthians", detail: "(Tloha = Vá)" },
-            { id: 139, lang: "Tonganês", text: "ʻAlu Corinthians", detail: "(ʻAlu = Vá)" },
-            { id: 140, lang: "Papiamento", text: "Bai Corinthians", detail: "(Bai = Vá)" },
-            { id: 141, lang: "Escocês", text: "Rach Corinthians", detail: "(Rach = Vá)" },
-            { id: 142, lang: "Frísio", text: "Gean Corinthians", detail: "(Gean = Vá)" },
-            { id: 143, lang: "Ganda", text: "Genda Corinthians", detail: "(Genda = Vá)" },
+            { id: 116, lang: "Aymara", text: "Corinthians sarxma", detail: "Sarxma = Vá em frente" },
+            { id: 117, lang: "Esloveno", text: "Naprej, Corinthians!", detail: "Naprej = Avante" },
+            { id: 118, lang: "Hiri Motu", text: "Corinthians lao!", detail: "Lao = Vá" },
+            { id: 119, lang: "Sotho do Norte", text: "Sepela Corinthians", detail: "Sepela = Vá/Avance" },
+            { id: 120, lang: "Fijiano", text: "Lako Corinthians", detail: "Lako = Vá" },
+            { id: 121, lang: "Galês", text: "Ewch Corinthians", detail: "Ewch = Vá" },
+            { id: 122, lang: "Islandês", text: "Áfram, Corinthians!", detail: "Áfram = Avante" },
+            { id: 123, lang: "Luxemburguês", text: "Géi Corinthians", detail: "Géi = Vá" },
+            { id: 124, lang: "Suaíli", text: "Nenda Corinthians", detail: "Nenda = Vá" },
+            { id: 125, lang: "Malaio (Indonésio)", text: "Pergi Corinthians", detail: "Pergi = Vá/Siga" },
+            { id: 126, lang: "Árabe do Saara", text: "يا كورينثيانز روح", detail: "Ya Kūrīnthiāns rūḥ" },
+            { id: 127, lang: "Waray-Waray", text: "Kadto Corinthians", detail: "Kadto = Vá" },
+            { id: 128, lang: "Hiligaynon", text: "Sige Corinthians", detail: "Sige = Força" },
+            { id: 129, lang: "Tcheco", text: "Pojď, Corinthians!", detail: "Pojď = Vamos/Vai" },
+            { id: 130, lang: "Norueguês", text: "Kom igjen Corinthians!", detail: "Kom igjen = Vamos lá" },
+            { id: 131, lang: "Basco", text: "Aurrera Corinthians!", detail: "Aurrera = Avante" },
+            { id: 132, lang: "Havaiano", text: "E hele Corinthians", detail: "E hele = Vá" },
+            { id: 133, lang: "Guarani", text: "Corinthians tereho", detail: "Tereho = Você vá" },
+            { id: 134, lang: "Tzotzil", text: "Corinthians bat", detail: "Bat = Vá" },
+            { id: 135, lang: "Twi", text: "Kɔ Corinthians", detail: "Kɔ = Vá" },
+            { id: 136, lang: "Wolof", text: "Demal Corinthians", detail: "Demal = Vá" },
+            { id: 137, lang: "Kabyle", text: "Argaz Corinthians", detail: "Argaz = Vá/Avance" },
+            { id: 138, lang: "Sotho do Sul", text: "Tloha Corinthians", detail: "Tloha = Vá" },
+            { id: 139, lang: "Tonganês", text: "ʻAlu Corinthians", detail: "ʻAlu = Vá" },
+            { id: 140, lang: "Papiamento", text: "Bai Corinthians", detail: "Bai = Vá" },
+            { id: 141, lang: "Escocês", text: "Rach Corinthians", detail: "Rach = Vá" },
+            { id: 142, lang: "Frísio", text: "Gean Corinthians", detail: "Gean = Vá" },
+            { id: 143, lang: "Ganda", text: "Genda Corinthians", detail: "Genda = Vá" },
             { id: 144, lang: "Sânscrito", text: "गच्छतु कोरिन्थीयन्स", detail: "Gacchatu Korinthīyans" },
-            { id: 145, lang: "Hunsrik", text: "Geh Corinthians", detail: "(Geh = Vá)" },
-            { id: 146, lang: "Wayuu", text: "Corinthians paa", detail: "(Paa = Vá)" },
-            { id: 147, lang: "Quechua do Sul", text: "Corinthians rispa", detail: "(Rispa = Vá/Prossiga)" },
-            { id: 148, lang: "Mixteco", text: "Corinthians ndíchi", detail: "(Ndíchi = Vá)" },
+            { id: 145, lang: "Hunsrik", text: "Geh Corinthians", detail: "Geh = Vá" },
+            { id: 146, lang: "Wayuu", text: "Corinthians paa", detail: "Paa = Vá" },
+            { id: 147, lang: "Quechua do Sul", text: "Corinthians rispa", detail: "Rispa = Vá/Prossiga" },
+            { id: 148, lang: "Mixteco", text: "Corinthians ndíchi", detail: "Ndíchi = Vá" },
             { id: 149, lang: "Cherokee", text: "ᎠᎢᎾ ᎢᎾᎾ", detail: "Ayina Ina'a" },
-            { id: 150, lang: "Samoano", text: "Alu Corinthians", detail: "(Alu = Vá)" },
-            { id: 151, lang: "Tetum", text: "Bá Corinthians", detail: "(Bá = Vá)" },
-            { id: 152, lang: "Navajo", text: "Corinthians dego", detail: "(Dego = Vá)" },
-            { id: 153, lang: "Mapudungun", text: "Corinthians amu", detail: "(Amu = Vá)" },
-            { id: 154, lang: "Ojibwa", text: "Corinthians zhaa", detail: "(Zhaa = Vá)" },
-            { id: 155, lang: "Cree", text: "Corinthians ito", detail: "(Ito = Vá)" },
-            { id: 156, lang: "Xosa", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 157, lang: "Tsonga", text: "Famba Corinthians", detail: "(Famba = Vá)" },
-            { id: 158, lang: "Venda", text: "Eda Corinthians", detail: "(Eda = Vá)" },
-            { id: 159, lang: "Ndebele do Norte", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 160, lang: "Ndebele do Sul", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 161, lang: "Swati", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 162, lang: "Pedi", text: "Sepela Corinthians", detail: "(Sepela = Vá/Avance)" },
-            { id: 163, lang: "Luganda", text: "Genda Corinthians", detail: "(Genda = Vá)" },
-            { id: 164, lang: "Rundi", text: "Genda Corinthians", detail: "(Genda = Vá)" },
-            { id: 165, lang: "Shona", text: "Enda Corinthians", detail: "(Enda = Vá)" },
-            { id: 166, lang: "Kamba", text: "Enda Corinthians", detail: "(Enda = Vá)" },
-            { id: 167, lang: "Lunda", text: "Yenda Corinthians", detail: "(Yenda = Vá)" },
-            { id: 168, lang: "Mbundu do Sul", text: "Ndjinda Corinthians", detail: "(Ndjinda = Vá)" },
-            { id: 169, lang: "Ovambo", text: "Inda Corinthians", detail: "(Inda = Vá)" },
-            { id: 170, lang: "Ndonga", text: "Inda Corinthians", detail: "(Inda = Vá)" },
-            { id: 171, lang: "Herero", text: "Eenda Corinthians", detail: "(Eenda = Vá)" },
-            { id: 172, lang: "Lozi", text: "Zamaya Corinthians", detail: "(Zamaya = Vá)" },
-            { id: 173, lang: "Sena", text: "Enda Corinthians", detail: "(Enda = Vá)" },
-            { id: 174, lang: "Tonga", text: "Enda Corinthians", detail: "(Enda = Vá)" },
-            { id: 175, lang: "Tumbuka", text: "Yani Corinthians", detail: "(Yani = Vá)" },
-            { id: 176, lang: "Makhuwa", text: "Yaa Corinthians", detail: "(Yaa = Vá)" },
-            { id: 177, lang: "Lomwe", text: "Nrowa Corinthians", detail: "(Nrowa = Vá)" },
-            { id: 178, lang: "Chokwe", text: "Kunda Corinthians", detail: "(Kunda = Vá/Ganhe)" },
-            { id: 179, lang: "Umbundu", text: "Nya Corinthians", detail: "(Nya = Vá)" },
-            { id: 180, lang: "Bemba", text: "Yenda Corinthians", detail: "(Yenda = Vá)" },
-            { id: 181, lang: "Luyia", text: "Ndiya Corinthians", detail: "(Ndiya = Vá)" },
-            { id: 182, lang: "Maasai", text: "Enkalo Corinthians", detail: "(Enkalo = Vá/Siga)" },
-            { id: 183, lang: "Kalenjin", text: "Lakoi Corinthians", detail: "(Lakoi = Vá)" },
-            { id: 184, lang: "Luo", text: "Dhi Corinthians", detail: "(Dhi = Vá)" },
-            { id: 185, lang: "Nuer", text: "Gaa Corinthians", detail: "(Gaa = Vá)" },
-            { id: 186, lang: "Dinka", text: "Corinthians luu", detail: "(Luu = Vá)" },
-            { id: 187, lang: "Somali", text: "Kac Corinthians", detail: "(Kac = Levante-se/Vá)" },
-            { id: 188, lang: "Afar", text: "Kawu Corinthians", detail: "(Kawu = Vá)" },
-            { id: 189, lang: "Saho", text: "Kawo Corinthians", detail: "(Kawo = Vá)" },
-            { id: 190, lang: "Tigré", text: "Corinthians qe't", detail: "(Qe't = Vá/Siga)" },
-            { id: 191, lang: "Harari", text: "Corinthians yir", detail: "(Yir = Vá)" },
-            { id: 192, lang: "Oromo do Oeste Central", text: "Deemi Corinthians", detail: "(Deemi = Vá)" },
-            { id: 193, lang: "Oromo do Leste", text: "Deemi Corinthians", detail: "(Deemi = Vá)" },
-            { id: 194, lang: "Sidamo", text: "Daaro Corinthians", detail: "(Daaro = Vá/Avance)" },
-            { id: 195, lang: "Hadiyya", text: "Wajjo Corinthians", detail: "(Wajjo = Vá)" },
-            { id: 196, lang: "Kambaata", text: "Wajo Corinthians", detail: "(Wajo = Vá)" },
-            { id: 197, lang: "Wolaytta", text: "Wo'o Corinthians", detail: "(Wo'o = Vá)" },
-            { id: 198, lang: "Gamo", text: "Wajo Corinthians", detail: "(Wajo = Vá)" },
-            { id: 199, lang: "Gofa", text: "Wajo Corinthians", detail: "(Wajo = Vá)" },
-            { id: 200, lang: "Konso", text: "Yana Corinthians", detail: "(Yana = Vá)" },
-            { id: 201, lang: "Atong", text: "Corinthians reba", detail: "(Reba = Vá)" },
-            { id: 202, lang: "Zande", text: "Corinthians yo", detail: "(Yo = Vá)" },
-            { id: 203, lang: "Luri do Sul", text: "Corinthians be", detail: "(Be = Vá)" },
-            { id: 204, lang: "Mende", text: "Corinthians ya", detail: "(Ya = Vá)" },
-            { id: 205, lang: "Kirghiz", text: "Алға, Коринтианс!", detail: "(Alga = Avante/Pra frente)" },
-            { id: 206, lang: "Manés", text: "Gow Corinthians!", detail: "(Gow = Vá/Continue)" },
-            { id: 207, lang: "Mien", text: "Corinthians ndo", detail: "(Ndo = Vá)" },
-            { id: 208, lang: "Pulaar", text: "Yahu Corinthians!", detail: "(Yahu = Vá/Siga)" },
-            { id: 209, lang: "Bicol", text: "Padagos Corinthians", detail: "(Padagos = Continue/Avance)" },
-            { id: 210, lang: "Pangasinês", text: "La Corinthians", detail: "(La = Vá)" },
-            { id: 211, lang: "Tadjique", text: "Пеш, Коринтианс!", detail: "(Pesh = Avante/Pra frente)" },
-            { id: 212, lang: "Wolof", text: "Demal Corinthians", detail: "(Demal = Vá)" },
-            { id: 213, lang: "Tétum", text: "Bá Corinthians", detail: "(Bá = Vá)" },
-            { id: 214, lang: "Siksika (Pés-pretos)", text: "Corinthians poksi", detail: "(Poksi = Vá/Continue)" },
-            { id: 215, lang: "Nyanja", text: "Pitani Corinthians", detail: "(Pitani = Vá/Vão)" },
-            { id: 216, lang: "Mekeo", text: "Corinthians lao", detail: "(Lao = Vá)" },
-            { id: 217, lang: "Kimbundu", text: "Káua Corinthians", detail: "(Káua = Vá/Vai)" },
-            { id: 218, lang: "Mande", text: "Corinthians taa", detail: "(Taa = Vá)" },
-            { id: 219, lang: "Gaélico Escocês", text: "Rach air adhart Corinthians!", detail: "(Rach air adhart = Vá em frente)" },
-            { id: 220, lang: "Crioulo de Cabo Verde", text: "Bai Corinthians", detail: "(Bai = Vá)" },
-            { id: 221, lang: "Chavacano", text: "Anda Corinthians", detail: "(Anda = Vá/Anda)" },
-            { id: 222, lang: "Caxemira", text: "Corinthians chu", detail: "(Chu = Vá)" },
-            { id: 223, lang: "Krio", text: "Go Corinthians", detail: "(Go = Vá)" },
-            { id: 224, lang: "Ladino", text: "Ande Corinthians", detail: "(Ande = Vá/Avance)" },
-            { id: 225, lang: "Bashkir", text: "Башҡортостанға бар!", detail: "(Bar = Vá)" },
-            { id: 226, lang: "Tupi (Geral)", text: "Corinthians upe", detail: "(Upe = Vá/Avante)" },
-            { id: 227, lang: "Quechua Norte", text: "Corinthians ri", detail: "(Ri = Vá)" },
-            { id: 228, lang: "Quichua Chimborazo", text: "Corinthians ri", detail: "(Ri = Vá)" },
-            { id: 229, lang: "Luba-Kasai", text: "Genda Corinthians", detail: "(Genda = Vá)" },
-            { id: 230, lang: "Tsonga", text: "Famba Corinthians", detail: "(Famba = Vá)" },
-            { id: 231, lang: "Koyra Chiini (Songhay)", text: "Corinthians ye", detail: "(Ye = Vá)" },
-            { id: 232, lang: "Avar", text: "Къанлъийа Коринтианс!", detail: "(K'antl'iia = Avante)" },
-            { id: 233, lang: "Tumbuka", text: "Yani Corinthians", detail: "(Yani = Vá)" },
-            { id: 234, lang: "Garhwali", text: "Corinthians ja", detail: "(Ja = Vá)" },
-            { id: 235, lang: "Sotho do Norte", text: "Sepela Corinthians", detail: "(Sepela = Vá/Avance)" },
-            { id: 236, lang: "Uabou", text: "Corinthians do", detail: "(Do = Vá)" },
-            { id: 237, lang: "Bassa", text: "Corinthians da", detail: "(Da = Vá)" },
-            { id: 238, lang: "Ndebele do Norte", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 239, lang: "Venda", text: "Eda Corinthians", detail: "(Eda = Vá)" },
-            { id: 240, lang: "Swati", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 241, lang: "Xhosa", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 242, lang: "Zulu", text: "Hamba Corinthians", detail: "(Hamba = Vá)" },
-            { id: 243, lang: "Birmanês (variantes)", text: "ကိုရင်သီယန် သွားပါ", detail: "(Thwa = Vá)" },
-            { id: 244, lang: "Papiamento", text: "Bai Corinthians", detail: "(Bai = Vá)" },
-            { id: 245, lang: "Maithili", text: "कोरिन्थियन्स जाऊ", detail: "(Jāū = Vá)" },
-            { id: 246, lang: "Magahi", text: "कोरिन्थियन्स चल", detail: "(Chal = Vá/Ande)" },
-            { id: 247, lang: "Dhundhari", text: "कोरिन्थियन्स जा", detail: "(Jā = Vá)" },
-            { id: 248, lang: "Haryanvi", text: "कोरिन्थियन्स चाल", detail: "(Chāl = Vá/Ande)" },
-            { id: 249, lang: "Konkani", text: "कोरिंथियन्स वच", detail: "(Vach = Vá)" },
-            { id: 250, lang: "Málgache", text: "Mandeha Corinthians", detail: "(Mandeha = Vá)" },
-            { id: 251, lang: "Balúchi (variantes)", text: "کورینتھیئنز برو", detail: "(Braw = Vá)" },
-            { id: 252, lang: "Dinka", text: "Corinthians luu", detail: "(Luu = Vá)" },
-            { id: 253, lang: "Nuer", text: "Gaa Corinthians", detail: "(Gaa = Vá)" },
-            { id: 254, lang: "Zarma", text: "Corinthians kani", detail: "(Kani = Vá)" },
-            { id: 255, lang: "Kabyle", text: "Argaz Corinthians", detail: "(Argaz = Vá/Avance)" },
-            { id: 256, lang: "Berbere (Tashelhit)", text: "Amẓ Corinthians", detail: "(Amẓ = Vá/Siga)" },
-            { id: 257, lang: "Tuaregue (Tamasheq)", text: "Adu Corinthians", detail: "(Adu = Vá)" },
-            { id: 258, lang: "Afar", text: "Kawu Corinthians", detail: "(Kawu = Vá)" },
-            { id: 259, lang: "Saho", text: "Kawo Corinthians", detail: "(Kawo = Vá)" },
-            { id: 260, lang: "Tigré", text: "Corinthians qe't", detail: "(Qe't = Vá/Siga)" },
-            { id: 261, lang: "Luyia", text: "Ndiya Corinthians", detail: "(Ndiya = Vá)" },
-            { id: 262, lang: "Kalenjin", text: "Lakoi Corinthians", detail: "(Lakoi = Vá)" },
-            { id: 263, lang: "Luo", text: "Dhi Corinthians", detail: "(Dhi = Vá)" },
-            { id: 264, lang: "Maasai", text: "Enkalo Corinthians", detail: "(Enkalo = Vá/Siga)" },
-            { id: 265, lang: "Guarani Paraguaio", text: "Corinthians tereho", detail: "(Tereho = Você vá)" },
-            { id: 266, lang: "Aymara Central", text: "Corinthians sarxma", detail: "(Sarxma = Vá em frente/Avance)" },
-            { id: 267, lang: "Tzotzil", text: "Corinthians bat", detail: "(Bat = Vá)" },
-            { id: 268, lang: "Otomi", text: "Corinthians pa", detail: "(Pa = Vá)" },
-            { id: 269, lang: "Purépecha", text: "Corinthians ni", detail: "(Ni = Vá)" },
-            { id: 270, lang: "Wayuu", text: "Corinthians paa", detail: "(Paa = Vá)" },
-            { id: 271, lang: "Navaho", text: "Corinthians dego", detail: "(Dego = Vá)" },
-            { id: 272, lang: "Cherokee", text: "ᎠᎢᎾ ᎢᎾᎾ", detail: "(Ayina Ina'a)" },
-            { id: 273, lang: "Creek", text: "Corinthians hayá", detail: "(Hayá = Vá)" },
-            { id: 274, lang: "Choctaw", text: "Corinthians iya", detail: "(Iya = Vá)" },
-            { id: 275, lang: "Ojibwa", text: "Corinthians zhaa", detail: "(Zhaa = Vá)" },
-            { id: 276, lang: "Cree", text: "Corinthians ito", detail: "(Ito = Vá)" },
-            { id: 277, lang: "Lakota", text: "Corinthians yé", detail: "(Yé = Vá)" },
-            { id: 278, lang: "Dakota", text: "Corinthians yé", detail: "(Yé = Vá)" },
-            { id: 279, lang: "Mohawk", text: "Corinthians kye", detail: "(Kye = Vá)" },
-            { id: 280, lang: "Oneida", text: "Corinthians kye", detail: "(Kye = Vá)" },
-            { id: 281, lang: "Seneca", text: "Corinthians kye", detail: "(Kye = Vá)" },
-            { id: 282, lang: "Cayuga", text: "Corinthians kye", detail: "(Kye = Vá)" },
-            { id: 283, lang: "Onondaga", text: "Corinthians kye", detail: "(Kye = Vá)" },
-            { id: 284, lang: "Tuscarora", text: "Corinthians kye", detail: "(Kye = Vá)" },
-            { id: 285, lang: "Haida", text: "Corinthians áa", detail: "(Áa = Vá)" },
-            { id: 286, lang: "Tsimshian", text: "Corinthians la", detail: "(La = Vá)" },
-            { id: 287, lang: "Kwak'wala", text: "Corinthians guk", detail: "(Guk = Vá)" },
-            { id: 288, lang: "Nuu-chah-nulth", text: "Corinthians yaa", detail: "(Yaa = Vá)" },
-            { id: 289, lang: "Lushootseed", text: "Corinthians č'əx", detail: "(č'əx = Vá)" },
-            { id: 290, lang: "Halkomelem", text: "Corinthians č'əx", detail: "(č'əx = Vá)" },
-            { id: 291, lang: "Sooke", text: "Corinthians č'əx", detail: "(č'əx = Vá)" },
-            { id: 292, lang: "Makah", text: "Corinthians ya", detail: "(Ya = Vá)" },
-            { id: 293, lang: "Nootka", text: "Corinthians ya", detail: "(Ya = Vá)" },
-            { id: 294, lang: "Quileute", text: "Corinthians ya", detail: "(Ya = Vá)" },
-            { id: 295, lang: "Yurok", text: "Corinthians 'yo", detail: "('Yo = Vá)" },
-            { id: 296, lang: "Hupa", text: "Corinthians yaa", detail: "(Yaa = Vá)" },
-            { id: 297, lang: "Karok", text: "Corinthians yaa", detail: "(Yaa = Vá)" },
-            { id: 298, lang: "Shasta", text: "Corinthians yaa", detail: "(Yaa = Vá)" },
-            { id: 299, lang: "Achumawi", text: "Corinthians yaa", detail: "(Yaa = Vá)" },
-            { id: 300, lang: "Atsugewi", text: "Corinthians yaa", detail: "(Yaa = Vá)" },
-            { id: 301, lang: "Toba (Qom)", text: "Corinthians hiagá", detail: "(Hiagá = Vá)" },
-            { id: 302, lang: "Quiché", text: "Corinthians be", detail: "(Be = Vá)" },
-            { id: 303, lang: "Mam", text: "Corinthians b'ena", detail: "(B'ena = Vá)" },
-            { id: 304, lang: "Kekchi", text: "Corinthians chaq", detail: "(Chaq = Vá)" },
-            { id: 305, lang: "Cakchiquel", text: "Corinthians je'", detail: "(Je' = Vá)" },
-            { id: 306, lang: "Zapoteca (Variantes)", text: "Corinthians yé", detail: "(Yé = Vá)" },
-            { id: 307, lang: "Mazahua", text: "Corinthians nzaki", detail: "(Nzaki = Vá)" },
-            { id: 308, lang: "Mixteco (Variantes)", text: "Corinthians ndíchi", detail: "(Ndíchi = Vá)" },
-            { id: 309, lang: "Náuatle (Variantes)", text: "Corinthians ximo", detail: "(Ximo = Vá/Avance)" },
-            { id: 310, lang: "Tarasco (Purépecha)", text: "Corinthians ni", detail: "(Ni = Vá)" },
-            { id: 311, lang: "Totonaca", text: "Corinthians k'atla", detail: "(K'atla = Vá)" },
-            { id: 312, lang: "Chinanteco", text: "Corinthians jaa", detail: "(Jaa = Vá)" },
-            { id: 313, lang: "Huasteco", text: "Corinthians ku", detail: "(Ku = Vá)" },
-            { id: 314, lang: "Zoque", text: "Corinthians ke", detail: "(Ke = Vá)" },
-            { id: 315, lang: "Maya Yucateco", text: "Corinthians xeen", detail: "(Xeen = Vá)" },
-            { id: 316, lang: "Tepehuano", text: "Corinthians gaka", detail: "(Gaka = Vá)" },
-            { id: 317, lang: "Cora", text: "Corinthians 'itse", detail: "('Itse = Vá)" },
-            { id: 318, lang: "Huichol", text: "Corinthians we", detail: "(We = Vá)" },
-            { id: 319, lang: "Pima Bajo", text: "Corinthians ñu", detail: "(Ñu = Vá)" },
-            { id: 320, lang: "Apache (Variantes)", text: "Corinthians yá'an", detail: "(Yá'an = Vá)" },
-            { id: 321, lang: "Arapaho", text: "Corinthians 'oh'o", detail: "('Oh'o = Vá)" },
-            { id: 322, lang: "Cheyenne", text: "Corinthians hová", detail: "(Hová = Vá)" },
-            { id: 323, lang: "Blackfoot", text: "Corinthians náh", detail: "(Náh = Vá)" },
-            { id: 324, lang: "Fox", text: "Corinthians naha", detail: "(Naha = Vá)" },
-            { id: 325, lang: "Sauk", text: "Corinthians naha", detail: "(Naha = Vá)" },
-            { id: 326, lang: "Potawatomi", text: "Corinthians zhyaa", detail: "(Zhyaa = Vá)" },
-            { id: 327, lang: "Menominee", text: "Corinthians ahki", detail: "(Ahki = Vá)" },
-            { id: 328, lang: "Kickapoo", text: "Corinthians ne", detail: "(Ne = Vá)" },
-            { id: 329, lang: "Mi'kmaq", text: "Corinthians el", detail: "(El = Vá)" },
-            { id: 330, lang: "Maliseet-Passamaquoddy", text: "Corinthians él", detail: "(Él = Vá)" },
-            { id: 331, lang: "Caddo", text: "Corinthians 'e", detail: "('E = Vá)" },
-            { id: 332, lang: "Wichita", text: "Corinthians háwa", detail: "(Háwa = Vá)" },
-            { id: 333, lang: "Pawnee", text: "Corinthians kí", detail: "(Kí = Vá)" },
-            { id: 334, lang: "Arikara", text: "Corinthians na", detail: "(Na = Vá)" },
-            { id: 335, lang: "Siouano (Línguas)", text: "Corinthians yé", detail: "(Yé = Vá)" },
-            { id: 336, lang: "Hidatsa", text: "Corinthians ná", detail: "(Ná = Vá)" },
-            { id: 337, lang: "Mandan", text: "Corinthians 'an", detail: "('An = Vá)" },
-            { id: 338, lang: "Tlingit", text: "Corinthians at", detail: "(At = Vá)" },
-            { id: 339, lang: "Haida", text: "Corinthians áa", detail: "(Áa = Vá)" },
-            { id: 340, lang: "Zuni", text: "Corinthians 'e", detail: "('E = Vá)" },
-            { id: 341, lang: "Keresan", text: "Corinthians tsu", detail: "(Tsu = Vá)" },
-            { id: 342, lang: "Hopi", text: "Corinthians ya", detail: "(Ya = Vá)" },
-            { id: 343, lang: "Kiowa", text: "Corinthians yé", detail: "(Yé = Vá)" },
-            { id: 344, lang: "Tiwa", text: "Corinthians ta", detail: "(Ta = Vá)" },
-            { id: 345, lang: "Tewa", text: "Corinthians haa", detail: "(Haa = Vá)" },
-            { id: 346, lang: "Towa", text: "Corinthians háa", detail: "(Haa = Vá)" },
-            { id: 347, lang: "Pomo (Variantes)", text: "Corinthians qa", detail: "(Qa = Vá)" },
-            { id: 348, lang: "Yuma (Variantes)", text: "Corinthians cha", detail: "(Cha = Vá)" },
-            { id: 349, lang: "Salish (Variantes)", text: "Corinthians č'əx", detail: "(Č'əx = Vá)" },
-            { id: 350, lang: "Chinook (Variantes)", text: "Corinthians wá", detail: "(Wá = Vá)" },
-            { id: 351, lang: "Coosan", text: "Corinthians ya", detail: "(Ya = Vá)" },
-            { id: 352, lang: "Kalapuya", text: "Corinthians yu", detail: "(Yu = Vá)" },
-            { id: 353, lang: "Takelma", text: "Corinthians ye", detail: "(Ye = Vá)" },
-            { id: 354, lang: "Tsimshian", text: "Corinthians la", detail: "(La = Vá)" },
-            { id: 355, lang: "Wakashan (Línguas)", text: "Corinthians yaa", detail: "(Yaa = Vá)" },
-            { id: 356, lang: "Na-Dené (Línguas)", text: "Corinthians dego", detail: "(Dego = Vá)" },
-            { id: 357, lang: "Chukotka", text: "Коринтианс вак", detail: "(Wak = Vá)" },
-            { id: 358, lang: "Koryak", text: "Коринтианс вак", detail: "(Wak = Vá)" },
-            { id: 359, lang: "Itelmen", text: "Коринтианс вак", detail: "(Wak = Vá)" },
-            { id: 360, lang: "Yukaghir", text: "Коринтианс ий", detail: "(Iy = Vá)" },
-            { id: 361, lang: "Enets", text: "Коринтианс ŋa", detail: "(Ŋa = Vá)" },
-            { id: 362, lang: "Nganasan", text: "Коринтианс ŋa", detail: "(Ŋa = Vá)" },
-            { id: 363, lang: "Selkup", text: "Коринтианс ŋal", detail: "(Ŋal = Vá)" },
-            { id: 364, lang: "Khanty", text: "Коринтианс йи", detail: "(Yi = Vá)" },
-            { id: 365, lang: "Mansi", text: "Коринтианс йи", detail: "(Yi = Vá)" },
-            { id: 366, lang: "Nenets", text: "Коринтианс 'ы", detail: "('Ы = Vá)" },
-            { id: 367, lang: "Komi", text: "Коринтианс мун", detail: "(Mun = Vá)" },
-            { id: 368, lang: "Udmurt", text: "Коринтианс мын", detail: "(Myn = Vá)" },
-            { id: 369, lang: "Mari", text: "Коринтианс мий", detail: "(Mii = Vá)" },
-            { id: 370, lang: "Erzya", text: "Коринтианс чи", detail: "(Chi = Vá)" },
-            { id: 371, lang: "Moksha", text: "Коринтианс чи", detail: "(Chi = Vá)" },
-            { id: 372, lang: "Livônio", text: "Corinthians lǟ", detail: "(Lǟ = Vá)" },
-            { id: 373, lang: "Votic", text: "Corinthians menn", detail: "(Menn = Vá)" },
-            { id: 374, lang: "Izhorian", text: "Corinthians menn", detail: "(Menn = Vá)" },
-            { id: 375, lang: "Karelian", text: "Corinthians mennä", detail: "(Mennä = Vá)" },
-            { id: 376, lang: "Veps", text: "Corinthians me", detail: "(Me = Vá)" },
-            { id: 377, lang: "Sami (Variantes)", text: "Corinthians manna", detail: "(Manna = Vá)" },
-            { id: 378, lang: "Checheno", text: "Хьажа Коринтианс!", detail: "(H'aža = Vá/Olhe)" },
-            { id: 379, lang: "Ingush", text: "Хьажа Коринтианс!", detail: "(H'aža = Vá/Olhe)" },
-            { id: 380, lang: "Dargwa", text: "Коринтианс ахъ", detail: "(Aq' = Vá)" },
-            { id: 381, lang: "Lak", text: "Коринтианс хьу", detail: "(Hwu = Vá)" },
-            { id: 382, lang: "Lezgiano", text: "Коринтианс фе", detail: "(Fe = Vá)" },
-            { id: 383, lang: "Tabassarã", text: "Коринтианс ухъ", detail: "(Uq' = Vá)" },
-            { id: 384, lang: "Agul", text: "Коринтианс фи", detail: "(Fi = Vá)" },
-            { id: 385, lang: "Rutul", text: "Коринтианс фи", detail: "(Fi = Vá)" },
-            { id: 386, lang: "Tsakhur", text: "Коринтианс фи", detail: "(Fi = Vá)" },
-            { id: 387, lang: "Khinalug", text: "Коринтианс фи", detail: "(Fi = Vá)" },
-            { id: 388, lang: "Tsez", text: "Коринтианс хьи", detail: "(H'i = Vá)" },
-            { id: 389, lang: "Bezhta", text: "Коринтианс хьи", detail: "(H'i = Vá)" },
-            { id: 390, lang: "Hinuque", text: "Коринтианс хьи", detail: "(H'i = Vá)" },
-            { id: 391, lang: "Kabardiano", text: "Коринтианс к1уэ", detail: "(K'wə = Vá)" },
-            { id: 392, lang: "Adyghe", text: "Коринтианс к1о", detail: "(K'o = Vá)" },
-            { id: 393, lang: "Abaza", text: "Коринтианс ауа", detail: "(Aua = Vá)" },
-            { id: 394, lang: "Abkhaz", text: "Коринтианс аца", detail: "(Aca = Vá)" },
-            { id: 395, lang: "Georgiano", text: "წადი კორინთიანს!", detail: "(Tsadi = Vá)" },
-            { id: 396, lang: "Mingreliano", text: "ულა კორინთიანს", detail: "(Ula = Vá)" },
-            { id: 397, lang: "Laz", text: "გია კორინთიანს", detail: "(Gia = Vá)" },
-            { id: 398, lang: "Svan", text: "მიდი კორინთიანს", detail: "(Midi = Vá)" },
-            { id: 399, lang: "Burushaski", text: "Corinthians ye", detail: "(Ye = Vá)" },
-            { id: 400, lang: "Nihali", text: "Corinthians gari", detail: "(Gari = Vá)" },
-            { id: 401, lang: "Konda", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 402, lang: "Kui", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 403, lang: "Kuvi", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 404, lang: "Malto", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 405, lang: "Kurukh (Oraon)", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 406, lang: "Brahui", text: "Corinthians de", detail: "(De = Vá)" },
-            { id: 407, lang: "Gondi", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 408, lang: "Kolami", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 409, lang: "Naiki", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 410, lang: "Gadaba", text: "Corinthians va", detail: "(Va = Vá)" },
-            { id: 411, lang: "Toda", text: "Corinthians pō", detail: "(Pō = Vá)" },
-            { id: 412, lang: "Kota", text: "Corinthians pō", detail: "(Pō = Vá)" },
-            { id: 413, lang: "Badaga", text: "Corinthians pō", detail: "(Pō = Vá)" },
-            { id: 414, lang: "Tulu", text: "Corinthians pō", detail: "(Pō = Vá)" },
-            { id: 415, lang: "Kodava", text: "Corinthians pō", detail: "(Pō = Vá)" },
-            { id: 416, lang: "Kharia", text: "Corinthians bā", detail: "(Bā = Vá)" },
-            { id: 417, lang: "Juang", text: "Corinthians bā", detail: "(Bā = Vá)" },
-            { id: 418, lang: "Ho", text: "Corinthians sen", detail: "(Sen = Vá)" },
-            { id: 419, lang: "Mundari", text: "Corinthians sen", detail: "(Sen = Vá)" },
-            { id: 420, lang: "Santali", text: "Corinthians chal", detail: "(Chal = Vá/Ande)" },
-            { id: 421, lang: "Sora", text: "Corinthians ān", detail: "(Ān = Vá)" },
-            { id: 422, lang: "Savara", text: "Corinthians ān", detail: "(Ān = Vá)" },
-            { id: 423, lang: "Palaung", text: "Corinthians lò", detail: "(Lò = Vá)" },
-            { id: 424, lang: "Wa", text: "Corinthians wā", detail: "(Wā = Vá)" },
-            { id: 425, lang: "Khmu", text: "Corinthians tɤ", detail: "(Tɤ = Vá)" },
-            { id: 426, lang: "Mang", text: "Corinthians hō", detail: "(Hō = Vá)" },
-            { id: 427, lang: "Mon", text: "ကော်ရင်သီယန် သွား", detail: "(Hwa = Vá)" },
-            { id: 428, lang: "Semang", text: "Corinthians a", detail: "(A = Vá)" },
-            { id: 429, lang: "Senoi", text: "Corinthians ha", detail: "(Ha = Vá)" },
-            { id: 430, lang: "Temiar", text: "Corinthians ha", detail: "(Ha = Vá)" },
-            { id: 431, lang: "Viet-Muong", text: "Corinthians đi", detail: "(Đi = Vá)" },
-            { id: 432, lang: "Munda (Línguas)", text: "Corinthians sen", detail: "(Sen = Vá)" },
-            { id: 433, lang: "Nicobarense", text: "Corinthians ka", detail: "(Ka = Vá)" },
-            { id: 434, lang: "Andamanês (Línguas)", text: "Corinthians 'ō", detail: "('Ō = Vá)" },
-            { id: 435, lang: "Austronésio (Línguas regionais)", text: "Corinthians lako", detail: "(Lako = Vá)" },
-            { id: 436, lang: "Bikol", text: "Corinthians padagos", detail: "(Padagos = Continue/Avance)" },
-            { id: 437, lang: "Pangasinês", text: "Corinthians la", detail: "(La = Vá)" },
-            { id: 438, lang: "Kapampangan", text: "Corinthians lakad", detail: "(Lakad = Vá/Ande)" },
-            { id: 439, lang: "Maranao", text: "Corinthians lalakaw", detail: "(Lalakaw = Vá)" },
-            { id: 440, lang: "Maguindanao", text: "Corinthians lakaw", detail: "(Lakaw = Vá)" },
-            { id: 441, lang: "Tausug", text: "Corinthians layag", detail: "(Layag = Vá/Navegue)" },
-            { id: 442, lang: "Cuyonon", text: "Corinthians sige", detail: "(Sige = Gíria para \"Força\")" },
-            { id: 443, lang: "Ivatan", text: "Corinthians uli", detail: "(Uli = Vá/Siga)" },
-            { id: 444, lang: "Yogad", text: "Corinthians yali", detail: "(Yali = Vá)" },
-            { id: 445, lang: "Bontoc", text: "Corinthians umey", detail: "(Umey = Vá)" },
-            { id: 446, lang: "Kankanaey", text: "Corinthians umey", detail: "(Umey = Vá)" },
-            { id: 447, lang: "Ifugao", text: "Corinthians umey", detail: "(Umey = Vá)" },
-            { id: 448, lang: "Gaddang", text: "Corinthians uma", detail: "(Uma = Vá)" },
-            { id: 449, lang: "Itawis", text: "Corinthians umali", detail: "(Umali = Vá)" },
-            { id: 450, lang: "Masbateño", text: "Corinthians lakat", detail: "(Lakat = Vá)" },
-            { id: 451, lang: "Romblomanon", text: "Corinthians lakat", detail: "(Lakat = Vá)" },
-            { id: 452, lang: "Aklanon", text: "Corinthians sige", detail: "(Sige = Gíria para \"Força\")" },
-            { id: 453, lang: "Kinaray-a", text: "Corinthians mag-agto", detail: "(Mag-agto = Vá)" },
-            { id: 454, lang: "Surigaonon", text: "Corinthians dayon", detail: "(Dayon = Vá/Continue)" },
-            { id: 455, lang: "Butuanon", text: "Corinthians dayon", detail: "(Dayon = Vá/Continue)" },
-            { id: 456, lang: "Yakan", text: "Corinthians lakat", detail: "(Lakat = Vá)" },
-            { id: 457, lang: "Sama-Bajau", text: "Corinthians lakat", detail: "(Lakat = Vá)" },
-            { id: 458, lang: "Chamorro", text: "Corinthians fa'tinas", detail: "(Fa'tinas = Vá/Faça)" },
-            { id: 459, lang: "Palauan", text: "Corinthians me", detail: "(Me = Vá)" },
-            { id: 460, lang: "Woleaiano", text: "Corinthians 'oli", detail: "('Oli = Vá)" },
-            { id: 461, lang: "Caroliniano", text: "Corinthians 'oli", detail: "('Oli = Vá)" },
-            { id: 462, lang: "Marshallês", text: "Corinthians 'e", detail: "('E = Vá)" },
-            { id: 463, lang: "Kiribati", text: "Corinthians nako", detail: "(Nako = Vá)" },
-            { id: 464, lang: "Nauruan", text: "Corinthians nako", detail: "(Nako = Vá)" },
-            { id: 465, lang: "Rotuman", text: "Corinthians lelea", detail: "(Lelea = Vá)" },
-            { id: 466, lang: "Tokelauano", text: "Corinthians fano", detail: "(Fano = Vá)" },
-            { id: 467, lang: "Tuvaluano", text: "Corinthians fano", detail: "(Fano = Vá)" },
-            { id: 468, lang: "Wallisian", text: "Corinthians alu", detail: "(Alu = Vá)" },
-            { id: 469, lang: "Futunan", text: "Corinthians alu", detail: "(Alu = Vá)" },
-            { id: 470, lang: "Niueano", text: "Corinthians fano", detail: "(Fano = Vá)" },
-            { id: 471, lang: "Maori", text: "Haere Corinthians!", detail: "(Haere = Vá/Siga)" },
-            { id: 472, lang: "Rapa Nui", text: "Corinthians haere", detail: "(Haere = Vá/Siga)" },
-            { id: 473, lang: "Tahitiano", text: "Corinthians haere", detail: "(Haere = Vá/Siga)" },
-            { id: 474, lang: "Marquesano", text: "Corinthians haere", detail: "(Haere = Vá/Siga)" },
-            { id: 475, lang: "Tuamotuano", text: "Corinthians haere", detail: "(Haere = Vá/Siga)" },
-            { id: 476, lang: "Rarotongan", text: "Corinthians aere", detail: "(Aere = Vá/Siga)" },
-            { id: 477, lang: "Samoano", text: "Corinthians alu", detail: "(Alu = Vá)" },
-            { id: 478, lang: "Gilbertese", text: "Corinthians nako", detail: "(Nako = Vá)" },
-            { id: 479, lang: "Chuukese", text: "Corinthians 'oli", detail: "('Oli = Vá)" },
-            { id: 480, lang: "Pohnpeiano", text: "Corinthians koh", detail: "(Koh = Vá)" },
-            { id: 481, lang: "Kosraean", text: "Corinthians koh", detail: "(Koh = Vá)" },
-            { id: 482, lang: "Yapese", text: "Corinthians yo", detail: "(Yo = Vá)" },
-            { id: 483, lang: "Nggela", text: "Corinthians lako", detail: "(Lako = Vá)" },
-            { id: 484, lang: "Kwaio", text: "Corinthians lako", detail: "(Lako = Vá)" },
-            { id: 485, lang: "Lau", text: "Corinthians lako", detail: "(Lako = Vá)" },
-            { id: 486, lang: "Areare", text: "Corinthians lako", detail: "(Lako = Vá)" },
-            { id: 487, lang: "Bugis", text: "Corinthians lao", detail: "(Lao = Vá)" },
-            { id: 488, lang: "Makasar", text: "Corinthians lao", detail: "(Lao = Vá)" },
-            { id: 489, lang: "Lampung", text: "Corinthians haga", detail: "(Haga = Vá)" },
-            { id: 490, lang: "Minangkabau", text: "Corinthians pai", detail: "(Pai = Vá)" },
-            { id: 491, lang: "Batak (Variantes)", text: "Corinthians lao", detail: "(Lao = Vá)" },
-            { id: 492, lang: "Sunda", text: "Corinthians indit", detail: "(Indit = Vá/Siga)" },
-            { id: 493, lang: "Rejang", text: "Corinthians be", detail: "(Be = Vá)" },
-            { id: 494, lang: "Gayo", text: "Corinthians ber", detail: "(Ber = Vá)" },
-            { id: 495, lang: "Sasak", text: "Corinthians lalo", detail: "(Lalo = Vá)" },
-            { id: 496, lang: "Manggarai", text: "Corinthians 'lo", detail: "('Lo = Vá)" },
-            { id: 497, lang: "Ngaju", text: "Corinthians hagu", detail: "(Hagu = Vá)" },
-            { id: 498, lang: "Iban", text: "Corinthians be", detail: "(Be = Vá)" },
-            { id: 499, lang: "Melanau", text: "Corinthians be", detail: "(Be = Vá)" },
-            { id: 500, lang: "Kadazan-Dusun", text: "Corinthians bai", detail: "(Bai = Vá)" }
+            { id: 150, lang: "Samoano", text: "Alu Corinthians", detail: "Alu = Vá" },
+            { id: 151, lang: "Tetum", text: "Bá Corinthians", detail: "Bá = Vá" },
+            { id: 152, lang: "Navajo", text: "Corinthians dego", detail: "Dego = Vá" },
+            { id: 153, lang: "Mapudungun", text: "Corinthians amu", detail: "Amu = Vá" },
+            { id: 154, lang: "Ojibwa", text: "Corinthians zhaa", detail: "Zhaa = Vá" },
+            { id: 155, lang: "Cree", text: "Corinthians ito", detail: "Ito = Vá" },
+            { id: 156, lang: "Xosa", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 157, lang: "Tsonga", text: "Famba Corinthians", detail: "Famba = Vá" },
+            { id: 158, lang: "Venda", text: "Eda Corinthians", detail: "Eda = Vá" },
+            { id: 159, lang: "Ndebele do Norte", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 160, lang: "Ndebele do Sul", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 161, lang: "Swati", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 162, lang: "Pedi", text: "Sepela Corinthians", detail: "Sepela = Vá" },
+            { id: 163, lang: "Luganda", text: "Genda Corinthians", detail: "Genda = Vá" },
+            { id: 164, lang: "Rundi", text: "Genda Corinthians", detail: "Genda = Vá" },
+            { id: 165, lang: "Shona", text: "Enda Corinthians", detail: "Enda = Vá" },
+            { id: 166, lang: "Kamba", text: "Enda Corinthians", detail: "Enda = Vá" },
+            { id: 167, lang: "Lunda", text: "Yenda Corinthians", detail: "Yenda = Vá" },
+            { id: 168, lang: "Mbundu do Sul", text: "Ndjinda Corinthians", detail: "Ndjinda = Vá" },
+            { id: 169, lang: "Ovambo", text: "Inda Corinthians", detail: "Inda = Vá" },
+            { id: 170, lang: "Ndonga", text: "Inda Corinthians", detail: "Inda = Vá" },
+            { id: 171, lang: "Herero", text: "Eenda Corinthians", detail: "Eenda = Vá" },
+            { id: 172, lang: "Lozi", text: "Zamaya Corinthians", detail: "Zamaya = Vá" },
+            { id: 173, lang: "Sena", text: "Enda Corinthians", detail: "Enda = Vá" },
+            { id: 174, lang: "Tonga", text: "Enda Corinthians", detail: "Enda = Vá" },
+            { id: 175, lang: "Tumbuka", text: "Yani Corinthians", detail: "Yani = Vá" },
+            { id: 176, lang: "Makhuwa", text: "Yaa Corinthians", detail: "Yaa = Vá" },
+            { id: 177, lang: "Lomwe", text: "Nrowa Corinthians", detail: "Nrowa = Vá" },
+            { id: 178, lang: "Chokwe", text: "Kunda Corinthians", detail: "Kunda = Vá/Ganhe" },
+            { id: 179, lang: "Umbundu", text: "Nya Corinthians", detail: "Nya = Vá" },
+            { id: 180, lang: "Bemba", text: "Yenda Corinthians", detail: "Yenda = Vá" },
+            { id: 181, lang: "Luyia", text: "Ndiya Corinthians", detail: "Ndiya = Vá" },
+            { id: 182, lang: "Maasai", text: "Enkalo Corinthians", detail: "Enkalo = Vá/Siga" },
+            { id: 183, lang: "Kalenjin", text: "Lakoi Corinthians", detail: "Lakoi = Vá" },
+            { id: 184, lang: "Luo", text: "Dhi Corinthians", detail: "Dhi = Vá" },
+            { id: 185, lang: "Nuer", text: "Gaa Corinthians", detail: "Gaa = Vá" },
+            { id: 186, lang: "Dinka", text: "Corinthians luu", detail: "Luu = Vá" },
+            { id: 187, lang: "Somali", text: "Kac Corinthians", detail: "Kac = Levante-se" },
+            { id: 188, lang: "Afar", text: "Kawu Corinthians", detail: "Kawu = Vá" },
+            { id: 189, lang: "Saho", text: "Kawo Corinthians", detail: "Kawo = Vá" },
+            { id: 190, lang: "Tigré", text: "Corinthians qe't", detail: "Qe't = Vá/Siga" },
+            { id: 191, lang: "Harari", text: "Corinthians yir", detail: "Yir = Vá" },
+            { id: 192, lang: "Oromo W.", text: "Deemi Corinthians", detail: "Deemi = Vá" },
+            { id: 193, lang: "Oromo E.", text: "Deemi Corinthians", detail: "Deemi = Vá" },
+            { id: 194, lang: "Sidamo", text: "Daaro Corinthians", detail: "Daaro = Vá/Avance" },
+            { id: 195, lang: "Hadiyya", text: "Wajjo Corinthians", detail: "Wajjo = Vá" },
+            { id: 196, lang: "Kambaata", text: "Wajo Corinthians", detail: "Wajo = Vá" },
+            { id: 197, lang: "Wolaytta", text: "Wo'o Corinthians", detail: "Wo'o = Vá" },
+            { id: 198, lang: "Gamo", text: "Wajo Corinthians", detail: "Wajo = Vá" },
+            { id: 199, lang: "Gofa", text: "Wajo Corinthians", detail: "Wajo = Vá" },
+            { id: 200, lang: "Konso", text: "Yana Corinthians", detail: "Yana = Vá" },
+            { id: 201, lang: "Atong", text: "Corinthians reba", detail: "Reba = Vá" },
+            { id: 202, lang: "Zande", text: "Corinthians yo", detail: "Yo = Vá" },
+            { id: 203, lang: "Luri do Sul", text: "Corinthians be", detail: "Be = Vá" },
+            { id: 204, lang: "Mende", text: "Corinthians ya", detail: "Ya = Vá" },
+            { id: 205, lang: "Kirghiz", text: "Алға, Коринтианс!", detail: "Alga = Avante" },
+            { id: 206, lang: "Manés", text: "Gow Corinthians!", detail: "Gow = Vá/Continue" },
+            { id: 207, lang: "Mien", text: "Corinthians ndo", detail: "Ndo = Vá" },
+            { id: 208, lang: "Pulaar", text: "Yahu Corinthians!", detail: "Yahu = Vá/Siga" },
+            { id: 209, lang: "Bicol", text: "Padagos Corinthians", detail: "Padagos = Continue" },
+            { id: 210, lang: "Pangasinês", text: "La Corinthians", detail: "La = Vá" },
+            { id: 211, lang: "Tadjique", text: "Пеш, Коринтианс!", detail: "Pesh = Avante" },
+            { id: 212, lang: "Wolof", text: "Demal Corinthians", detail: "Demal = Vá" },
+            { id: 213, lang: "Tétum", text: "Bá Corinthians", detail: "Bá = Vá" },
+            { id: 214, lang: "Siksika", text: "Corinthians poksi", detail: "Poksi = Vá/Continue" },
+            { id: 215, lang: "Nyanja", text: "Pitani Corinthians", detail: "Pitani = Vá/Vão" },
+            { id: 216, lang: "Mekeo", text: "Corinthians lao", detail: "Lao = Vá" },
+            { id: 217, lang: "Kimbundu", text: "Káua Corinthians", detail: "Káua = Vá/Vai" },
+            { id: 218, lang: "Mande", text: "Corinthians taa", detail: "Taa = Vá" },
+            { id: 219, lang: "Gaélico Escocês", text: "Rach air adhart Corinthians!", detail: "Rach air adhart = Vá" },
+            { id: 220, lang: "Crioulo CV", text: "Bai Corinthians", detail: "Bai = Vá" },
+            { id: 221, lang: "Chavacano", text: "Anda Corinthians", detail: "Anda = Vá" },
+            { id: 222, lang: "Caxemira", text: "Corinthians chu", detail: "Chu = Vá" },
+            { id: 223, lang: "Krio", text: "Go Corinthians", detail: "Go = Vá" },
+            { id: 224, lang: "Ladino", text: "Ande Corinthians", detail: "Ande = Vá/Avance" },
+            { id: 225, lang: "Bashkir", text: "Башҡортостанға бар!", detail: "Bar = Vá" },
+            { id: 226, lang: "Tupi (Geral)", text: "Corinthians upe", detail: "Upe = Vá/Avante" },
+            { id: 227, lang: "Quechua Norte", text: "Corinthians ri", detail: "Ri = Vá" },
+            { id: 228, lang: "Quichua Ch.", text: "Corinthians ri", detail: "Ri = Vá" },
+            { id: 229, lang: "Luba-Kasai", text: "Genda Corinthians", detail: "Genda = Vá" },
+            { id: 230, lang: "Tsonga", text: "Famba Corinthians", detail: "Famba = Vá" },
+            { id: 231, lang: "Koyra Chiini", text: "Corinthians ye", detail: "Ye = Vá" },
+            { id: 232, lang: "Avar", text: "Къанлъийа Коринтианс!", detail: "K'antl'iia = Avante" },
+            { id: 233, lang: "Tumbuka", text: "Yani Corinthians", detail: "Yani = Vá" },
+            { id: 234, lang: "Garhwali", text: "Corinthians ja", detail: "Ja = Vá" },
+            { id: 235, lang: "Sotho do Norte", text: "Sepela Corinthians", detail: "Sepela = Vá" },
+            { id: 236, lang: "Uabou", text: "Corinthians do", detail: "Do = Vá" },
+            { id: 237, lang: "Bassa", text: "Corinthians da", detail: "Da = Vá" },
+            { id: 238, lang: "Ndebele N.", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 239, lang: "Venda", text: "Eda Corinthians", detail: "Eda = Vá" },
+            { id: 240, lang: "Swati", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 241, lang: "Xhosa", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 242, lang: "Zulu", text: "Hamba Corinthians", detail: "Hamba = Vá" },
+            { id: 243, lang: "Birmanês (var)", text: "ကိုရင်သီယန် သွားပါ", detail: "Thwa = Vá" },
+            { id: 244, lang: "Papiamento", text: "Bai Corinthians", detail: "Bai = Vá" },
+            { id: 245, lang: "Maithili", text: "कोरिन्थियन्स जाऊ", detail: "Jāū = Vá" },
+            { id: 246, lang: "Magahi", text: "कोरिन्थियन्स चल", detail: "Chal = Vá/Ande" },
+            { id: 247, lang: "Dhundhari", text: "कोरिन्थियन्स जा", detail: "Jā = Vá" },
+            { id: 248, lang: "Haryanvi", text: "कोरिन्थियन्स चाल", detail: "Chāl = Vá/Ande" },
+            { id: 249, lang: "Konkani", text: "कोरिंथियन्स वच", detail: "Vach = Vá" },
+            { id: 250, lang: "Málgache", text: "Mandeha Corinthians", detail: "Mandeha = Vá" },
+            { id: 251, lang: "Balúchi", text: "کورینتھیئنز برو", detail: "Braw = Vá" },
+            { id: 252, lang: "Dinka", text: "Corinthians luu", detail: "Luu = Vá" },
+            { id: 253, lang: "Nuer", text: "Gaa Corinthians", detail: "Gaa = Vá" },
+            { id: 254, lang: "Zarma", text: "Corinthians kani", detail: "Kani = Vá" },
+            { id: 255, lang: "Kabyle", text: "Argaz Corinthians", detail: "Argaz = Vá/Avance" },
+            { id: 256, lang: "Berbere", text: "Amẓ Corinthians", detail: "Amẓ = Vá/Siga" },
+            { id: 257, lang: "Tuaregue", text: "Adu Corinthians", detail: "Adu = Vá" },
+            { id: 258, lang: "Afar", text: "Kawu Corinthians", detail: "Kawu = Vá" },
+            { id: 259, lang: "Saho", text: "Kawo Corinthians", detail: "Kawo = Vá" },
+            { id: 260, lang: "Tigré", text: "Corinthians qe't", detail: "Qe't = Vá/Siga" },
+            { id: 261, lang: "Luyia", text: "Ndiya Corinthians", detail: "Ndiya = Vá" },
+            { id: 262, lang: "Kalenjin", text: "Lakoi Corinthians", detail: "Lakoi = Vá" },
+            { id: 263, lang: "Luo", text: "Dhi Corinthians", detail: "Dhi = Vá" },
+            { id: 264, lang: "Maasai", text: "Enkalo Corinthians", detail: "Enkalo = Vá/Siga" },
+            { id: 265, lang: "Guarani PY", text: "Corinthians tereho", detail: "Tereho = Você vá" },
+            { id: 266, lang: "Aymara C.", text: "Corinthians sarxma", detail: "Sarxma = Vá em frente" },
+            { id: 267, lang: "Tzotzil", text: "Corinthians bat", detail: "Bat = Vá" },
+            { id: 268, lang: "Otomi", text: "Corinthians pa", detail: "Pa = Vá" },
+            { id: 269, lang: "Purépecha", text: "Corinthians ni", detail: "Ni = Vá" },
+            { id: 270, lang: "Wayuu", text: "Corinthians paa", detail: "Paa = Vá" },
+            { id: 271, lang: "Navaho", text: "Corinthians dego", detail: "Dego = Vá" },
+            { id: 272, lang: "Cherokee", text: "ᎠᎢᎾ ᎢᎾᎾ", detail: "Ayina Ina'a" },
+            { id: 273, lang: "Creek", text: "Corinthians hayá", detail: "Hayá = Vá" },
+            { id: 274, lang: "Choctaw", text: "Corinthians iya", detail: "Iya = Vá" },
+            { id: 275, lang: "Ojibwa", text: "Corinthians zhaa", detail: "Zhaa = Vá" },
+            { id: 276, lang: "Cree", text: "Corinthians ito", detail: "Ito = Vá" },
+            { id: 277, lang: "Lakota", text: "Corinthians yé", detail: "Yé = Vá" },
+            { id: 278, lang: "Dakota", text: "Corinthians yé", detail: "Yé = Vá" },
+            { id: 279, lang: "Mohawk", text: "Corinthians kye", detail: "Kye = Vá" },
+            { id: 280, lang: "Oneida", text: "Corinthians kye", detail: "Kye = Vá" },
+            { id: 281, lang: "Seneca", text: "Corinthians kye", detail: "Kye = Vá" },
+            { id: 282, lang: "Cayuga", text: "Corinthians kye", detail: "Kye = Vá" },
+            { id: 283, lang: "Onondaga", text: "Corinthians kye", detail: "Kye = Vá" },
+            { id: 284, lang: "Tuscarora", text: "Corinthians kye", detail: "Kye = Vá" },
+            { id: 285, lang: "Haida", text: "Corinthians áa", detail: "Áa = Vá" },
+            { id: 286, lang: "Tsimshian", text: "Corinthians la", detail: "La = Vá" },
+            { id: 287, lang: "Kwak'wala", text: "Corinthians guk", detail: "Guk = Vá" },
+            { id: 288, lang: "Nuu-chah-nulth", text: "Corinthians yaa", detail: "Yaa = Vá" },
+            { id: 289, lang: "Lushootseed", text: "Corinthians č'əx", detail: "č'əx = Vá" },
+            { id: 290, lang: "Halkomelem", text: "Corinthians č'əx", detail: "č'əx = Vá" },
+            { id: 291, lang: "Sooke", text: "Corinthians č'əx", detail: "č'əx = Vá" },
+            { id: 292, lang: "Makah", text: "Corinthians ya", detail: "Ya = Vá" },
+            { id: 293, lang: "Nootka", text: "Corinthians ya", detail: "Ya = Vá" },
+            { id: 294, lang: "Quileute", text: "Corinthians ya", detail: "Ya = Vá" },
+            { id: 295, lang: "Yurok", text: "Corinthians 'yo", detail: "'Yo = Vá" },
+            { id: 296, lang: "Hupa", text: "Corinthians yaa", detail: "Yaa = Vá" },
+            { id: 297, lang: "Karok", text: "Corinthians yaa", detail: "Yaa = Vá" },
+            { id: 298, lang: "Shasta", text: "Corinthians yaa", detail: "Yaa = Vá" },
+            { id: 299, lang: "Achumawi", text: "Corinthians yaa", detail: "Yaa = Vá" },
+            { id: 300, lang: "Atsugewi", text: "Corinthians yaa", detail: "Yaa = Vá" },
+            { id: 301, lang: "Toba (Qom)", text: "Corinthians hiagá", detail: "Hiagá = Vá" },
+            { id: 302, lang: "Quiché", text: "Corinthians be", detail: "Be = Vá" },
+            { id: 303, lang: "Mam", text: "Corinthians b'ena", detail: "B'ena = Vá" },
+            { id: 304, lang: "Kekchi", text: "Corinthians chaq", detail: "Chaq = Vá" },
+            { id: 305, lang: "Cakchiquel", text: "Corinthians je'", detail: "Je' = Vá" },
+            { id: 306, lang: "Zapoteca", text: "Corinthians yé", detail: "Yé = Vá" },
+            { id: 307, lang: "Mazahua", text: "Corinthians nzaki", detail: "Nzaki = Vá" },
+            { id: 308, lang: "Mixteco", text: "Corinthians ndíchi", detail: "Ndíchi = Vá" },
+            { id: 309, lang: "Náuatle", text: "Corinthians ximo", detail: "Ximo = Vá" },
+            { id: 310, lang: "Tarasco", text: "Corinthians ni", detail: "Ni = Vá" },
+            { id: 311, lang: "Totonaca", text: "Corinthians k'atla", detail: "K'atla = Vá" },
+            { id: 312, lang: "Chinanteco", text: "Corinthians jaa", detail: "Jaa = Vá" },
+            { id: 313, lang: "Huasteco", text: "Corinthians ku", detail: "Ku = Vá" },
+            { id: 314, lang: "Zoque", text: "Corinthians ke", detail: "Ke = Vá" },
+            { id: 315, lang: "Maya Yucateco", text: "Corinthians xeen", detail: "Xeen = Vá" },
+            { id: 316, lang: "Tepehuano", text: "Corinthians gaka", detail: "Gaka = Vá" },
+            { id: 317, lang: "Cora", text: "Corinthians 'itse", detail: "'Itse = Vá" },
+            { id: 318, lang: "Huichol", text: "Corinthians we", detail: "We = Vá" },
+            { id: 319, lang: "Pima Bajo", text: "Corinthians ñu", detail: "Ñu = Vá" },
+            { id: 320, lang: "Apache", text: "Corinthians yá'an", detail: "Yá'an = Vá" },
+            { id: 321, lang: "Arapaho", text: "Corinthians 'oh'o", detail: "'Oh'o = Vá" },
+            { id: 322, lang: "Cheyenne", text: "Corinthians hová", detail: "Hová = Vá" },
+            { id: 323, lang: "Blackfoot", text: "Corinthians náh", detail: "Náh = Vá" },
+            { id: 324, lang: "Fox", text: "Corinthians naha", detail: "Naha = Vá" },
+            { id: 325, lang: "Sauk", text: "Corinthians naha", detail: "Naha = Vá" },
+            { id: 326, lang: "Potawatomi", text: "Corinthians zhyaa", detail: "Zhyaa = Vá" },
+            { id: 327, lang: "Menominee", text: "Corinthians ahki", detail: "Ahki = Vá" },
+            { id: 328, lang: "Kickapoo", text: "Corinthians ne", detail: "Ne = Vá" },
+            { id: 329, lang: "Mi'kmaq", text: "Corinthians el", detail: "El = Vá" },
+            { id: 330, lang: "Maliseet", text: "Corinthians él", detail: "Él = Vá" },
+            { id: 331, lang: "Caddo", text: "Corinthians 'e", detail: "'E = Vá" },
+            { id: 332, lang: "Wichita", text: "Corinthians háwa", detail: "Háwa = Vá" },
+            { id: 333, lang: "Pawnee", text: "Corinthians kí", detail: "Kí = Vá" },
+            { id: 334, lang: "Arikara", text: "Corinthians na", detail: "Na = Vá" },
+            { id: 335, lang: "Siouano", text: "Corinthians yé", detail: "Yé = Vá" },
+            { id: 336, lang: "Hidatsa", text: "Corinthians ná", detail: "Ná = Vá" },
+            { id: 337, lang: "Mandan", text: "Corinthians 'an", detail: "'An = Vá" },
+            { id: 338, lang: "Tlingit", text: "Corinthians at", detail: "At = Vá" },
+            { id: 339, lang: "Haida", text: "Corinthians áa", detail: "Áa = Vá" },
+            { id: 340, lang: "Zuni", text: "Corinthians 'e", detail: "'E = Vá" },
+            { id: 341, lang: "Keresan", text: "Corinthians tsu", detail: "Tsu = Vá" },
+            { id: 342, lang: "Hopi", text: "Corinthians ya", detail: "Ya = Vá" },
+            { id: 343, lang: "Kiowa", text: "Corinthians yé", detail: "Yé = Vá" },
+            { id: 344, lang: "Tiwa", text: "Corinthians ta", detail: "Ta = Vá" },
+            { id: 345, lang: "Tewa", text: "Corinthians haa", detail: "Haa = Vá" },
+            { id: 346, lang: "Towa", text: "Corinthians háa", detail: "Háa = Vá" },
+            { id: 347, lang: "Pomo", text: "Corinthians qa", detail: "Qa = Vá" },
+            { id: 348, lang: "Yuma", text: "Corinthians cha", detail: "Cha = Vá" },
+            { id: 349, lang: "Salish", text: "Corinthians č'əx", detail: "Č'əx = Vá" },
+            { id: 350, lang: "Chinook", text: "Corinthians wá", detail: "Wá = Vá" },
+            { id: 351, lang: "Coosan", text: "Corinthians ya", detail: "Ya = Vá" },
+            { id: 352, lang: "Kalapuya", text: "Corinthians yu", detail: "Yu = Vá" },
+            { id: 353, lang: "Takelma", text: "Corinthians ye", detail: "Ye = Vá" },
+            { id: 354, lang: "Tsimshian", text: "Corinthians la", detail: "La = Vá" },
+            { id: 355, lang: "Wakashan", text: "Corinthians yaa", detail: "Yaa = Vá" },
+            { id: 356, lang: "Na-Dené", text: "Corinthians dego", detail: "Dego = Vá" },
+            { id: 357, lang: "Chukotka", text: "Коринтианс вак", detail: "Wak = Vá" },
+            { id: 358, lang: "Koryak", text: "Коринтианс вак", detail: "Wak = Vá" },
+            { id: 359, lang: "Itelmen", text: "Коринтианс вак", detail: "Wak = Vá" },
+            { id: 360, lang: "Yukaghir", text: "Коринтианс ий", detail: "Iy = Vá" },
+            { id: 361, lang: "Enets", text: "Коринтианс ŋa", detail: "ŋa = Vá" },
+            { id: 362, lang: "Nganasan", text: "Коринтианс ŋa", detail: "ŋa = Vá" },
+            { id: 363, lang: "Selkup", text: "Коринтианс ŋal", detail: "ŋal = Vá" },
+            { id: 364, lang: "Khanty", text: "Коринтианс йи", detail: "Yi = Vá" },
+            { id: 365, lang: "Mansi", text: "Коринтианс йи", detail: "Yi = Vá" },
+            { id: 366, lang: "Nenets", text: "Коринтианс 'ы", detail: "'Ы = Vá" },
+            { id: 367, lang: "Komi", text: "Коринтианс мун", detail: "Mun = Vá" },
+            { id: 368, lang: "Udmurt", text: "Коринтианс мын", detail: "Myn = Vá" },
+            { id: 369, lang: "Mari", text: "Коринтианс мий", detail: "Mii = Vá" },
+            { id: 370, lang: "Erzya", text: "Коринтианс чи", detail: "Chi = Vá" },
+            { id: 371, lang: "Moksha", text: "Коринтианс чи", detail: "Chi = Vá" },
+            { id: 372, lang: "Livônio", text: "Corinthians lǟ", detail: "Lǟ = Vá" },
+            { id: 373, lang: "Votic", text: "Corinthians menn", detail: "Menn = Vá" },
+            { id: 374, lang: "Izhorian", text: "Corinthians menn", detail: "Menn = Vá" },
+            { id: 375, lang: "Karelian", text: "Corinthians mennä", detail: "Mennä = Vá" },
+            { id: 376, lang: "Veps", text: "Corinthians me", detail: "Me = Vá" },
+            { id: 377, lang: "Sami", text: "Corinthians manna", detail: "Manna = Vá" },
+            { id: 378, lang: "Checheno", text: "Хьажа Коринтианс!", detail: "H'aža = Vá" },
+            { id: 379, lang: "Ingush", text: "Хьажа Коринтианс!", detail: "H'aža = Vá" },
+            { id: 380, lang: "Dargwa", text: "Коринтианс ахъ", detail: "Aq' = Vá" },
+            { id: 381, lang: "Lak", text: "Коринтианс хьу", detail: "Hwu = Vá" },
+            { id: 382, lang: "Lezgiano", text: "Коринтианс фе", detail: "Fe = Vá" },
+            { id: 383, lang: "Tabassarã", text: "Коринтианс ухъ", detail: "Uq' = Vá" },
+            { id: 384, lang: "Agul", text: "Коринтианс фи", detail: "Fi = Vá" },
+            { id: 385, lang: "Rutul", text: "Коринтианс фи", detail: "Fi = Vá" },
+            { id: 386, lang: "Tsakhur", text: "Коринтианс фи", detail: "Fi = Vá" },
+            { id: 387, lang: "Khinalug", text: "Коринтианс фи", detail: "Fi = Vá" },
+            { id: 388, lang: "Tsez", text: "Коринтианс хьи", detail: "H'i = Vá" },
+            { id: 389, lang: "Bezhta", text: "Коринтианс хьи", detail: "H'i = Vá" },
+            { id: 390, lang: "Hinuque", text: "Коринтианс хьи", detail: "H'i = Vá" },
+            { id: 391, lang: "Kabardiano", text: "Коринтианс к1уэ", detail: "K'wə = Vá" },
+            { id: 392, lang: "Adyghe", text: "Коринтианс к1о", detail: "K'o = Vá" },
+            { id: 393, lang: "Abaza", text: "Коринтианс ауа", detail: "Aua = Vá" },
+            { id: 394, lang: "Abkhaz", text: "Коринтианс аца", detail: "Aca = Vá" },
+            { id: 395, lang: "Georgiano", text: "წადი კორინთიანს!", detail: "Tsadi = Vá" },
+            { id: 396, lang: "Mingreliano", text: "ულა კორინთიანს", detail: "Ula = Vá" },
+            { id: 397, lang: "Laz", text: "გია კორინთიანს", detail: "Gia = Vá" },
+            { id: 398, lang: "Svan", text: "მიდი კორინთიანს", detail: "Midi = Vá" },
+            { id: 399, lang: "Burushaski", text: "Corinthians ye", detail: "Ye = Vá" },
+            { id: 400, lang: "Nihali", text: "Corinthians gari", detail: "Gari = Vá" },
+            { id: 401, lang: "Konda", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 402, lang: "Kui", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 403, lang: "Kuvi", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 404, lang: "Malto", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 405, lang: "Kurukh", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 406, lang: "Brahui", text: "Corinthians de", detail: "De = Vá" },
+            { id: 407, lang: "Gondi", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 408, lang: "Kolami", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 409, lang: "Naiki", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 410, lang: "Gadaba", text: "Corinthians va", detail: "Va = Vá" },
+            { id: 411, lang: "Toda", text: "Corinthians pō", detail: "Pō = Vá" },
+            { id: 412, lang: "Kota", text: "Corinthians pō", detail: "Pō = Vá" },
+            { id: 413, lang: "Badaga", text: "Corinthians pō", detail: "Pō = Vá" },
+            { id: 414, lang: "Tulu", text: "Corinthians pō", detail: "Pō = Vá" },
+            { id: 415, lang: "Kodava", text: "Corinthians pō", detail: "Pō = Vá" },
+            { id: 416, lang: "Kharia", text: "Corinthians bā", detail: "Bā = Vá" },
+            { id: 417, lang: "Juang", text: "Corinthians bā", detail: "Bā = Vá" },
+            { id: 418, lang: "Ho", text: "Corinthians sen", detail: "Sen = Vá" },
+            { id: 419, lang: "Mundari", text: "Corinthians sen", detail: "Sen = Vá" },
+            { id: 420, lang: "Santali", text: "Corinthians chal", detail: "Chal = Vá" },
+            { id: 421, lang: "Sora", text: "Corinthians ān", detail: "Ān = Vá" },
+            { id: 422, lang: "Savara", text: "Corinthians ān", detail: "Ān = Vá" },
+            { id: 423, lang: "Palaung", text: "Corinthians lò", detail: "Lò = Vá" },
+            { id: 424, lang: "Wa", text: "Corinthians wā", detail: "Wā = Vá" },
+            { id: 425, lang: "Khmu", text: "Corinthians tɤ", detail: "Tɤ = Vá" },
+            { id: 426, lang: "Mang", text: "Corinthians hō", detail: "Hō = Vá" },
+            { id: 427, lang: "Mon", text: "ကော်ရင်သီယန် သွား", detail: "Hwa = Vá" },
+            { id: 428, lang: "Semang", text: "Corinthians a", detail: "A = Vá" },
+            { id: 429, lang: "Senoi", text: "Corinthians ha", detail: "Ha = Vá" },
+            { id: 430, lang: "Temiar", text: "Corinthians ha", detail: "Ha = Vá" },
+            { id: 431, lang: "Viet-Muong", text: "Corinthians đi", detail: "Đi = Vá" },
+            { id: 432, lang: "Munda", text: "Corinthians sen", detail: "Sen = Vá" },
+            { id: 433, lang: "Nicobarense", text: "Corinthians ka", detail: "Ka = Vá" },
+            { id: 434, lang: "Andamanês", text: "Corinthians 'ō", detail: "'Ō = Vá" },
+            { id: 435, lang: "Austronésio", text: "Corinthians lako", detail: "Lako = Vá" },
+            { id: 436, lang: "Bikol", text: "Corinthians padagos", detail: "Padagos = Continue" },
+            { id: 437, lang: "Pangasinês", text: "Corinthians la", detail: "La = Vá" },
+            { id: 438, lang: "Kapampangan", text: "Corinthians lakad", detail: "Lakad = Vá" },
+            { id: 439, lang: "Maranao", text: "Corinthians lalakaw", detail: "Lalakaw = Vá" },
+            { id: 440, lang: "Maguindanao", text: "Corinthians lakaw", detail: "Lakaw = Vá" },
+            { id: 441, lang: "Tausug", text: "Corinthians layag", detail: "Layag = Vá" },
+            { id: 442, lang: "Cuyonon", text: "Corinthians sige", detail: "Sige = Força" },
+            { id: 443, lang: "Ivatan", text: "Corinthians uli", detail: "Uli = Vá" },
+            { id: 444, lang: "Yogad", text: "Corinthians yali", detail: "Yali = Vá" },
+            { id: 445, lang: "Bontoc", text: "Corinthians umey", detail: "Umey = Vá" },
+            { id: 446, lang: "Kankanaey", text: "Corinthians umey", detail: "Umey = Vá" },
+            { id: 447, lang: "Ifugao", text: "Corinthians umey", detail: "Umey = Vá" },
+            { id: 448, lang: "Gaddang", text: "Corinthians uma", detail: "Uma = Vá" },
+            { id: 449, lang: "Itawis", text: "Corinthians umali", detail: "Umali = Vá" },
+            { id: 450, lang: "Masbateño", text: "Corinthians lakat", detail: "Lakat = Vá" },
+            { id: 451, lang: "Romblomanon", text: "Corinthians lakat", detail: "Lakat = Vá" },
+            { id: 452, lang: "Aklanon", text: "Corinthians sige", detail: "Sige = Força" },
+            { id: 453, lang: "Kinaray-a", text: "Corinthians mag-agto", detail: "Mag-agto = Vá" },
+            { id: 454, lang: "Surigaonon", text: "Corinthians dayon", detail: "Dayon = Vá" },
+            { id: 455, lang: "Butuanon", text: "Corinthians dayon", detail: "Dayon = Vá" },
+            { id: 456, lang: "Yakan", text: "Corinthians lakat", detail: "Lakat = Vá" },
+            { id: 457, lang: "Sama-Bajau", text: "Corinthians lakat", detail: "Lakat = Vá" },
+            { id: 458, lang: "Chamorro", text: "Corinthians fa'tinas", detail: "Fa'tinas = Vá" },
+            { id: 459, lang: "Palauan", text: "Corinthians me", detail: "Me = Vá" },
+            { id: 460, lang: "Woleaiano", text: "Corinthians 'oli", detail: "'Oli = Vá" },
+            { id: 461, lang: "Caroliniano", text: "Corinthians 'oli", detail: "'Oli = Vá" },
+            { id: 462, lang: "Marshallês", text: "Corinthians 'e", detail: "'E = Vá" },
+            { id: 463, lang: "Kiribati", text: "Corinthians nako", detail: "Nako = Vá" },
+            { id: 464, lang: "Nauruan", text: "Corinthians nako", detail: "Nako = Vá" },
+            { id: 465, lang: "Rotuman", text: "Corinthians lelea", detail: "Lelea = Vá" },
+            { id: 466, lang: "Tokelauano", text: "Corinthians fano", detail: "Fano = Vá" },
+            { id: 467, lang: "Tuvaluano", text: "Corinthians fano", detail: "Fano = Vá" },
+            { id: 468, lang: "Wallisian", text: "Corinthians alu", detail: "Alu = Vá" },
+            { id: 469, lang: "Futunan", text: "Corinthians alu", detail: "Alu = Vá" },
+            { id: 470, lang: "Niueano", text: "Corinthians fano", detail: "Fano = Vá" },
+            { id: 471, lang: "Maori", text: "Haere Corinthians!", detail: "Haere = Vá/Siga" },
+            { id: 472, lang: "Rapa Nui", text: "Corinthians haere", detail: "Haere = Vá/Siga" },
+            { id: 473, lang: "Tahitiano", text: "Corinthians haere", detail: "Haere = Vá/Siga" },
+            { id: 474, lang: "Marquesano", text: "Corinthians haere", detail: "Haere = Vá/Siga" },
+            { id: 475, lang: "Tuamotuano", text: "Corinthians haere", detail: "Haere = Vá/Siga" },
+            { id: 476, lang: "Rarotongan", text: "Corinthians aere", detail: "Aere = Vá/Siga" },
+            { id: 477, lang: "Samoano", text: "Corinthians alu", detail: "Alu = Vá" },
+            { id: 478, lang: "Gilbertese", text: "Corinthians nako", detail: "Nako = Vá" },
+            { id: 479, lang: "Chuukese", text: "Corinthians 'oli", detail: "'Oli = Vá" },
+            { id: 480, lang: "Pohnpeiano", text: "Corinthians koh", detail: "Koh = Vá" },
+            { id: 481, lang: "Kosraean", text: "Corinthians koh", detail: "Koh = Vá" },
+            { id: 482, lang: "Yapese", text: "Corinthians yo", detail: "Yo = Vá" },
+            { id: 483, lang: "Nggela", text: "Corinthians lako", detail: "Lako = Vá" },
+            { id: 484, lang: "Kwaio", text: "Corinthians lako", detail: "Lako = Vá" },
+            { id: 485, lang: "Lau", text: "Corinthians lako", detail: "Lako = Vá" },
+            { id: 486, lang: "Areare", text: "Corinthians lako", detail: "Lako = Vá" },
+            { id: 487, lang: "Bugis", text: "Corinthians lao", detail: "Lao = Vá" },
+            { id: 488, lang: "Makasar", text: "Corinthians lao", detail: "Lao = Vá" },
+            { id: 489, lang: "Lampung", text: "Corinthians haga", detail: "Haga = Vá" },
+            { id: 490, lang: "Minangkabau", text: "Corinthians pai", detail: "Pai = Vá" },
+            { id: 491, lang: "Batak", text: "Corinthians lao", detail: "Lao = Vá" },
+            { id: 492, lang: "Sunda", text: "Corinthians indit", detail: "Indit = Vá" },
+            { id: 493, lang: "Rejang", text: "Corinthians be", detail: "Be = Vá" },
+            { id: 494, lang: "Gayo", text: "Corinthians ber", detail: "Ber = Vá" },
+            { id: 495, lang: "Sasak", text: "Corinthians lalo", detail: "Lalo = Vá" },
+            { id: 496, lang: "Manggarai", text: "Corinthians 'lo", detail: "'Lo = Vá" },
+            { id: 497, lang: "Ngaju", text: "Corinthians hagu", detail: "Hagu = Vá" },
+            { id: 498, lang: "Iban", text: "Corinthians be", detail: "Be = Vá" },
+            { id: 499, lang: "Melanau", text: "Corinthians be", detail: "Be = Vá" },
+            { id: 500, lang: "Kadazan-Dusun", text: "Corinthians bai", detail: "Bai = Vá" }
         ];
 
         // --- 2. VERIFICAÇÃO DE DISPOSITIVO E GATE ---
@@ -829,42 +952,133 @@
             const width = window.innerWidth;
             const gate = document.getElementById('desktop-gate');
             const app = document.getElementById('app-container');
+            const intro = document.getElementById('intro-overlay');
 
             if (width > 1024) {
                 // Modo Desktop - Bloqueado
                 gate.style.display = 'flex';
                 app.style.display = 'none';
+                intro.style.display = 'none'; // Não roda intro no desktop
                 
                 // Animação do Gate
                 gsap.to("#gate-content", { duration: 1.5, opacity: 1, y: 0, ease: "power3.out", delay: 0.2 });
                 gsap.from(".gate-shield", { duration: 2, scale: 0.8, rotationY: 360, repeat: -1, yoyo: true, ease: "sine.inOut" });
             } else {
-                // Modo Mobile - Liberado
+                // Modo Mobile - Roda a Intro primeiro
                 gate.style.display = 'none';
-                app.style.display = 'flex';
-                initApp();
+                
+                if (!appInitialized) {
+                    startIntroSequence();
+                }
             }
         }
 
-        // --- 3. INICIALIZAÇÃO DO APP ---
+        // --- 3. SEQUÊNCIA DE INTRODUÇÃO (CINEMÁTICA) ---
+        function startIntroSequence() {
+            // Inicializa ThreeJS no fundo (invisível ainda)
+            initThreeJS();
+
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    document.getElementById('intro-overlay').style.display = 'none';
+                    initApp(); // Começa o app real
+                }
+            });
+
+            // FASE 1: Narrativa (Texto apenas)
+            // Texto 1
+            tl.to("#intro-text-1", { duration: 1, opacity: 1, text: "A PAIXÃO NÃO TEM FRONTEIRAS" })
+              .to("#intro-text-1", { duration: 1.5, scale: 1.05, ease: "none" }) // Drift suave
+              .to("#intro-text-1", { duration: 0.5, opacity: 0 });
+
+            // Texto 2
+            tl.call(() => { document.querySelector("#intro-text-1").innerText = "EM 500 IDIOMAS..."; })
+              .to("#intro-text-1", { duration: 1, opacity: 1 })
+              .to("#intro-text-1", { duration: 1.5, scale: 1, ease: "none" })
+              .to("#intro-text-1", { duration: 0.5, opacity: 0 });
+
+            // Texto 3
+            tl.call(() => { document.querySelector("#intro-text-1").innerText = "UM SÓ GRITO."; })
+              .to("#intro-text-1", { duration: 0.8, opacity: 1 })
+              .to("#intro-text-1", { duration: 0.5, opacity: 0, delay: 0.3 });
+
+            // FASE 2: O CLÍMAX (Logo + Flash + Texto de Impacto com Digitação)
+            
+            // 1. Flash de luz explode
+            tl.to("#flash-effect", { duration: 0.05, opacity: 1, ease: "power4.in" });
+
+            // 2. Logo surge EXPLODINDO (Zoom Out rápido) e fica visível
+            tl.to("#intro-logo", { duration: 0.01, opacity: 1 }, "<"); // Aparece instantaneamente no flash
+            tl.fromTo("#intro-logo", 
+                { scale: 3, opacity: 0 }, 
+                { duration: 0.8, scale: 1, opacity: 1, ease: "elastic.out(1, 0.5)" }, 
+            "<");
+
+            // 3. Container do texto de impacto surge (Scale Down + Shake)
+            tl.to("#final-impact", { duration: 0.01, opacity: 1 }, "<");
+            tl.fromTo("#final-impact",
+                { scale: 5 },
+                { duration: 0.5, scale: 1, ease: "power4.out" },
+            "<");
+
+            // 4. Flash sai
+            tl.to("#flash-effect", { duration: 1, opacity: 0 }, ">");
+
+            // 5. Efeito de Digitação do "VAI CORINTHIANS"
+            // Inicia logo após o impacto visual
+            tl.call(() => {
+                const impactSpan = document.getElementById('impact-text-span');
+                const textToType = "VAI CORINTHIANS";
+                let i = 0;
+                impactSpan.innerText = "";
+                
+                // Função rápida de digitação interna
+                function typeIntro() {
+                    if (i < textToType.length) {
+                        impactSpan.innerText += textToType.charAt(i);
+                        i++;
+                        setTimeout(typeIntro, 80); // Velocidade da digitação
+                    }
+                }
+                typeIntro();
+            }, null, "-=0.8"); // Começa um pouco antes do flash terminar totalmente
+
+            // Tremor de tela durante o impacto
+            tl.to("#intro-overlay", { duration: 0.05, x: -8, repeat: 5, yoyo: true }, "<");
+            tl.set("#intro-overlay", { x: 0 });
+
+            // Aguarda um momento de glória com o logo e o texto completo
+            tl.to("#intro-logo", { duration: 3, scale: 1.05, ease: "sine.inOut" }); // Respira levemente
+            
+            // 4. Fade out da Intro
+            tl.to("#intro-overlay", { duration: 1.5, opacity: 0, ease: "power2.inOut" });
+        }
+
+        // --- 4. INICIALIZAÇÃO DO APP (PÓS-INTRO) ---
         let appInitialized = false;
 
         function initApp() {
             if (appInitialized) return;
             appInitialized = true;
 
+            const app = document.getElementById('app-container');
+            app.style.display = 'flex';
+            
             // Fade in do App
             gsap.to("#app-container", { duration: 1, opacity: 1 });
 
-            initThreeJS();
             initLanguageScroll();
         }
 
-        // --- 4. THREE.JS - APENAS PARTICULAS (AMBIENTE) ---
+        // --- 5. THREE.JS - APENAS PARTICULAS (AMBIENTE) ---
         let scene, camera, renderer, particlesMesh;
         let mouseX = 0, mouseY = 0;
+        let threeInitialized = false;
 
         function initThreeJS() {
+            if (threeInitialized) return;
+            threeInitialized = true;
+
             const container = document.getElementById('canvas-container');
             
             // Cena
@@ -883,11 +1097,10 @@
 
             // Partículas (Poeira estelar / Torcida)
             const particlesGeometry = new THREE.BufferGeometry();
-            const particlesCount = 800; // Aumentado para mais densidade
+            const particlesCount = 800; 
             const posArray = new Float32Array(particlesCount * 3);
 
             for(let i = 0; i < particlesCount * 3; i++) {
-                // Espalha mais no espaço
                 posArray[i] = (Math.random() - 0.5) * 40; 
             }
 
@@ -925,8 +1138,10 @@
             requestAnimationFrame(animateThree);
 
             // Rotação suave das estrelas
-            particlesMesh.rotation.y += 0.0005;
-            particlesMesh.rotation.x += 0.0002;
+            if(particlesMesh) {
+                particlesMesh.rotation.y += 0.0005;
+                particlesMesh.rotation.x += 0.0002;
+            }
 
             // Movimento sutil da câmera baseado no toque/mouse
             camera.position.x += (mouseX * 5 - camera.position.x) * 0.05;
@@ -936,9 +1151,8 @@
             renderer.render(scene, camera);
         }
 
-        // --- 5. LÓGICA DE IDIOMAS (GSAP SCROLL + TYPEWRITER) ---
+        // --- 6. LÓGICA DE IDIOMAS (GSAP SCROLL + TYPEWRITER) ---
         
-        // Função para embaralhar array (Fisher-Yates)
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -947,7 +1161,7 @@
             return array;
         }
 
-        function typeWriter(element, text, callback, speed = 40) {
+        function typeWriter(element, text, callback) {
             let i = 0;
             element.textContent = ""; 
             
@@ -955,7 +1169,7 @@
                 if (i < text.length) {
                     element.textContent += text.charAt(i);
                     i++;
-                    setTimeout(type, Math.random() * 20 + 30); // Variação para parecer humano
+                    setTimeout(type, Math.random() * 20 + 30); 
                 } else {
                     if (callback) callback();
                 }
@@ -966,16 +1180,14 @@
         function initLanguageScroll() {
             const track = document.getElementById('shout-track');
             
-            // Embaralha antes de criar
             const shuffled = shuffleArray([...translations]);
-            // Duplicamos a lista embaralhada para criar o loop
+            // Duplicamos a lista para criar o loop infinito visual
             const fullList = [...shuffled, ...shuffled];
 
-            fullList.forEach((item, index) => {
+            fullList.forEach((item) => {
                 const div = document.createElement('div');
                 div.className = 'shout-item';
                 
-                // data-text armazena o texto completo, data-status controla estado
                 div.innerHTML = `
                     <div style="display:inline-block; min-height: 1.2em;">
                         <span class="shout-phrase" data-text="${item.text}"></span><span class="cursor-blink"></span>
@@ -985,15 +1197,12 @@
                         <span class="lang-pronunciation">${item.detail}</span>
                     </div>
                 `;
-                // Estado inicial: waiting (esperando para entrar na zona)
                 div.dataset.status = 'waiting';
                 track.appendChild(div);
             });
 
-            // Animação Vertical Infinita
             const totalHeight = track.scrollHeight;
             
-            // Velocidade lenta e solene (duration ajustada para 1250s com 500 itens)
             const tl = gsap.timeline({ repeat: -1 });
             tl.to(track, {
                 y: -(totalHeight / 2), 
@@ -1001,19 +1210,16 @@
                 ease: "none"
             });
 
-            // Monitoramento de Posição (Central Loop)
             setInterval(() => {
                 const center = window.innerHeight / 2;
-                // Zona de ativação no centro da tela (tolerância de 80px)
                 const items = document.querySelectorAll('.shout-item');
                 
                 items.forEach(el => {
                     const rect = el.getBoundingClientRect();
                     const elCenter = rect.top + rect.height / 2;
                     
-                    // Definições de zona
                     const isInCenter = Math.abs(center - elCenter) < 100;
-                    const isBelow = rect.top > (center + 150); // Abaixo da zona de ativação
+                    const isBelow = rect.top > (center + 150); 
 
                     const textEl = el.querySelector('.shout-phrase');
                     const cursor = el.querySelector('.cursor-blink');
@@ -1021,7 +1227,6 @@
 
                     if (isInCenter) {
                         el.classList.add('active');
-                        // Se entrou no centro e estava esperando ou resetado
                         if (el.dataset.status === 'waiting') {
                             el.dataset.status = 'typing';
                             if(cursor) cursor.style.display = 'inline-block';
@@ -1034,9 +1239,6 @@
                     } else {
                         el.classList.remove('active');
                         
-                        // Lógica de RESET:
-                        // Se o item passar muito para baixo (voltando no loop infinito do GSAP),
-                        // ou se estiver chegando de baixo (antes de aparecer), limpamos o texto.
                         if (isBelow) {
                              if (el.dataset.status !== 'waiting') {
                                  textEl.textContent = "";
@@ -1044,18 +1246,27 @@
                                  if(cursor) cursor.style.display = 'none';
                              }
                         }
-                        
-                        // Se já passou para cima (rect.top < center - 150),
-                        // deixamos como 'typed' para não sumir abruptamente enquanto sai da tela.
-                        // O loop do GSAP vai mover ele para baixo eventualmente, caindo no 'isBelow'.
                     }
                 });
-            }, 50); // Checagem rápida
+            }, 50); 
         }
 
         // --- HANDLER DE RESIZE ---
         window.addEventListener('resize', () => {
-            checkGate();
+            // Apenas verifica gate se não for a primeira carga móvel (que já verifica no init)
+            const width = window.innerWidth;
+            const gate = document.getElementById('desktop-gate');
+            if (width > 1024) {
+                 gate.style.display = 'flex';
+                 document.getElementById('app-container').style.display = 'none';
+                 document.getElementById('intro-overlay').style.display = 'none';
+            } else {
+                gate.style.display = 'none';
+                if(appInitialized) {
+                    document.getElementById('app-container').style.display = 'flex';
+                }
+            }
+
             if (renderer) {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
@@ -1063,7 +1274,7 @@
             }
         });
 
-        // INÍCIO IMEDIATO
+        // INÍCIO
         checkGate();
 
     </script>
