@@ -192,7 +192,7 @@
         
         /* Cursor piscante do typewriter */
         .cursor-blink {
-            display: inline-block;
+            display: none; /* Escondido por padrão */
             width: 2px;
             height: 6vw;
             background-color: var(--c-gold);
@@ -937,7 +937,17 @@
         }
 
         // --- 5. LÓGICA DE IDIOMAS (GSAP SCROLL + TYPEWRITER) ---
-        function typeWriter(element, text, speed = 50) {
+        
+        // Função para embaralhar array (Fisher-Yates)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function typeWriter(element, text, callback, speed = 40) {
             let i = 0;
             element.textContent = ""; 
             
@@ -945,11 +955,9 @@
                 if (i < text.length) {
                     element.textContent += text.charAt(i);
                     i++;
-                    setTimeout(type, Math.random() * 30 + 30); // Variação para parecer humano
+                    setTimeout(type, Math.random() * 20 + 30); // Variação para parecer humano
                 } else {
-                    // Remove cursor após terminar
-                    const cursor = element.parentElement.querySelector('.cursor-blink');
-                    if(cursor) cursor.style.display = 'none';
+                    if (callback) callback();
                 }
             }
             type();
@@ -958,31 +966,28 @@
         function initLanguageScroll() {
             const track = document.getElementById('shout-track');
             
-            // Duplicamos a lista para criar o loop
-            const fullList = [...translations, ...translations];
+            // Embaralha antes de criar
+            const shuffled = shuffleArray([...translations]);
+            // Duplicamos a lista embaralhada para criar o loop
+            const fullList = [...shuffled, ...shuffled];
 
             fullList.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'shout-item';
                 
-                // Cria a estrutura, mas o texto da frase começa vazio
+                // data-text armazena o texto completo, data-status controla estado
                 div.innerHTML = `
-                    <div style="display:inline-block">
-                        <span class="shout-phrase" id="phrase-${index}"></span><span class="cursor-blink"></span>
+                    <div style="display:inline-block; min-height: 1.2em;">
+                        <span class="shout-phrase" data-text="${item.text}"></span><span class="cursor-blink"></span>
                     </div>
                     <div class="lang-details">
                         <span class="lang-name">${item.lang}</span>
                         <span class="lang-pronunciation">${item.detail}</span>
                     </div>
                 `;
+                // Estado inicial: waiting (esperando para entrar na zona)
+                div.dataset.status = 'waiting';
                 track.appendChild(div);
-
-                // Efeito de Digitação Escalonado
-                // Começa a digitar assim que o elemento é provável de estar na tela ou em sequência
-                setTimeout(() => {
-                    const textEl = document.getElementById(`phrase-${index}`);
-                    typeWriter(textEl, item.text);
-                }, index * 800 + 500); // Delay progressivo
             });
 
             // Animação Vertical Infinita
@@ -996,23 +1001,56 @@
                 ease: "none"
             });
 
-            // Highlight Central
+            // Monitoramento de Posição (Central Loop)
             setInterval(() => {
                 const center = window.innerHeight / 2;
+                // Zona de ativação no centro da tela (tolerância de 80px)
                 const items = document.querySelectorAll('.shout-item');
                 
                 items.forEach(el => {
                     const rect = el.getBoundingClientRect();
                     const elCenter = rect.top + rect.height / 2;
-                    const distance = Math.abs(center - elCenter);
+                    
+                    // Definições de zona
+                    const isInCenter = Math.abs(center - elCenter) < 100;
+                    const isBelow = rect.top > (center + 150); // Abaixo da zona de ativação
 
-                    if (distance < 80) {
+                    const textEl = el.querySelector('.shout-phrase');
+                    const cursor = el.querySelector('.cursor-blink');
+                    const fullText = textEl.dataset.text;
+
+                    if (isInCenter) {
                         el.classList.add('active');
+                        // Se entrou no centro e estava esperando ou resetado
+                        if (el.dataset.status === 'waiting') {
+                            el.dataset.status = 'typing';
+                            if(cursor) cursor.style.display = 'inline-block';
+                            
+                            typeWriter(textEl, fullText, () => {
+                                el.dataset.status = 'typed';
+                                if(cursor) cursor.style.display = 'none';
+                            });
+                        }
                     } else {
                         el.classList.remove('active');
+                        
+                        // Lógica de RESET:
+                        // Se o item passar muito para baixo (voltando no loop infinito do GSAP),
+                        // ou se estiver chegando de baixo (antes de aparecer), limpamos o texto.
+                        if (isBelow) {
+                             if (el.dataset.status !== 'waiting') {
+                                 textEl.textContent = "";
+                                 el.dataset.status = 'waiting';
+                                 if(cursor) cursor.style.display = 'none';
+                             }
+                        }
+                        
+                        // Se já passou para cima (rect.top < center - 150),
+                        // deixamos como 'typed' para não sumir abruptamente enquanto sai da tela.
+                        // O loop do GSAP vai mover ele para baixo eventualmente, caindo no 'isBelow'.
                     }
                 });
-            }, 100);
+            }, 50); // Checagem rápida
         }
 
         // --- HANDLER DE RESIZE ---
