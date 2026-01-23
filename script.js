@@ -511,12 +511,14 @@ function checkGate() {
     const gate = document.getElementById('desktop-gate');
     const app = document.getElementById('app-container');
     const intro = document.getElementById('intro-overlay');
+    const modal = document.getElementById('lang-modal');
 
     if (width > 1024) {
         // Modo Desktop - Bloqueado
         gate.style.display = 'flex';
         app.style.display = 'none';
         intro.style.display = 'none'; 
+        if(modal) modal.classList.remove('open');
         
         gsap.to("#gate-content", { duration: 1.5, opacity: 1, y: 0, ease: "power3.out", delay: 0.2 });
         gsap.from(".gate-shield", { duration: 2, scale: 0.8, rotationY: 360, repeat: -1, yoyo: true, ease: "sine.inOut" });
@@ -617,6 +619,7 @@ function initApp() {
     gsap.to("#app-container", { duration: 1, opacity: 1 });
 
     initLanguageScroll();
+    initModalLogic();
 }
 
 // --- 5. THREE.JS ---
@@ -693,6 +696,7 @@ function animateThree() {
 }
 
 // --- 6. LÓGICA DE IDIOMAS (SCROLL INFINITO) ---
+let scrollTimeline;
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -744,14 +748,17 @@ function initLanguageScroll() {
 
     const totalHeight = track.scrollHeight;
     
-    const tl = gsap.timeline({ repeat: -1 });
-    tl.to(track, {
+    scrollTimeline = gsap.timeline({ repeat: -1 });
+    scrollTimeline.to(track, {
         y: -(totalHeight / 2), 
         duration: 1500, // Mais lento para apreciação
         ease: "none"
     });
 
     setInterval(() => {
+        // Se o modal estiver aberto, não processa o typewrite
+        if(document.getElementById('lang-modal').classList.contains('open')) return;
+
         const center = window.innerHeight / 2;
         const items = document.querySelectorAll('.shout-item');
         
@@ -791,6 +798,79 @@ function initLanguageScroll() {
             }
         });
     }, 50); 
+}
+
+// --- 7. MODAL LOGIC (NOVA FEATURE) ---
+function initModalLogic() {
+    const btnOpen = document.getElementById('btn-open-list');
+    const btnClose = document.getElementById('btn-close-modal');
+    const modal = document.getElementById('lang-modal');
+    const modalBg = document.querySelector('.modal-bg-blur');
+    const searchInput = document.getElementById('lang-search');
+    const listContent = document.getElementById('lang-list-content');
+
+    // Renderiza a lista inicial
+    renderList(translations);
+
+    // Abrir Modal
+    btnOpen.addEventListener('click', () => {
+        modal.classList.add('open');
+        if(scrollTimeline) scrollTimeline.pause(); // Pausa o scroll de fundo
+        searchInput.focus();
+    });
+
+    // Fechar Modal
+    const closeModal = () => {
+        modal.classList.remove('open');
+        if(scrollTimeline) scrollTimeline.play(); // Retoma o scroll de fundo
+        searchInput.value = '';
+        renderList(translations); // Reset list
+    };
+
+    btnClose.addEventListener('click', closeModal);
+    modalBg.addEventListener('click', closeModal);
+
+    // Busca/Filtro
+    searchInput.addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const filtered = translations.filter(item => 
+            item.lang.toLowerCase().includes(term) || 
+            item.country.toLowerCase().includes(term) ||
+            item.detail.toLowerCase().includes(term)
+        );
+        renderList(filtered);
+    });
+}
+
+function renderList(items) {
+    const container = document.getElementById('lang-list-content');
+    container.innerHTML = '';
+
+    if (items.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding: 20px; color: #666;">Nenhum resultado encontrado.</div>';
+        return;
+    }
+
+    // Usar DocumentFragment para performance
+    const fragment = document.createDocumentFragment();
+
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+            <div class="list-item-left">
+                <span class="list-country">${item.country}</span>
+                <span class="list-lang">${item.lang}</span>
+            </div>
+            <div class="list-item-right">
+                <span class="list-phrase">${item.text}</span>
+                <span class="list-pronunciation">${item.detail}</span>
+            </div>
+        `;
+        fragment.appendChild(div);
+    });
+
+    container.appendChild(fragment);
 }
 
 window.addEventListener('resize', () => {
