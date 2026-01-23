@@ -510,14 +510,12 @@ function checkGate() {
     const width = window.innerWidth;
     const gate = document.getElementById('desktop-gate');
     const app = document.getElementById('app-container');
-    const intro = document.getElementById('intro-overlay');
     const modal = document.getElementById('lang-modal');
 
     if (width > 1024) {
         // Modo Desktop - Bloqueado
         gate.style.display = 'flex';
         app.style.display = 'none';
-        intro.style.display = 'none'; 
         if(modal) modal.classList.remove('open');
         
         gsap.to("#gate-content", { duration: 1.5, opacity: 1, y: 0, ease: "power3.out", delay: 0.2 });
@@ -526,92 +524,19 @@ function checkGate() {
         gate.style.display = 'none';
         
         if (!appInitialized) {
-            startIntroSequence();
+            initApp();
         }
     }
 }
 
-// --- 3. SEQUÊNCIA DE INTRODUÇÃO (CINEMÁTICA OTIMIZADA) ---
-function startIntroSequence() {
-    initThreeJS();
-
-    const tl = gsap.timeline({
-        onComplete: () => {
-            gsap.to("#intro-overlay", { duration: 0.5, opacity: 0, onComplete: () => {
-                document.getElementById('intro-overlay').style.display = 'none';
-                initApp(); 
-            }});
-        }
-    });
-
-    const textStyle = { opacity: 0, scale: 0.9 };
-    const textIn = { duration: 1, opacity: 1, scale: 1, ease: "power2.out" };
-    const textOut = { duration: 0.5, opacity: 0, scale: 1.1, ease: "power2.in" };
-
-    // Texto 1
-    tl.fromTo("#intro-text-1", textStyle, { ...textIn, text: "A PAIXÃO NÃO TEM FRONTEIRAS" })
-      .to("#intro-text-1", textOut, "+=1");
-
-    // Texto 2
-    tl.set("#intro-text-1", { text: "EM 500 IDIOMAS..." })
-      .fromTo("#intro-text-1", textStyle, textIn)
-      .to("#intro-text-1", textOut, "+=1");
-
-    // Texto 3
-    tl.set("#intro-text-1", { text: "UM SÓ GRITO." })
-      .fromTo("#intro-text-1", textStyle, textIn)
-      .to("#intro-text-1", textOut, "+=0.5");
-
-    // CLÍMAX (Logo + Flash + Texto de Impacto)
-    tl.addLabel("climax");
-    
-    // Flash
-    tl.to("#flash-effect", { duration: 0.1, opacity: 1, ease: "expo.in" }, "climax");
-
-    // Logo Surge
-    tl.to("#intro-logo", { duration: 0.01, opacity: 1 }, "climax");
-    tl.fromTo("#intro-logo", 
-        { scale: 2, opacity: 0 }, 
-        { duration: 1, scale: 1, opacity: 1, ease: "elastic.out(1, 0.5)" }, 
-    "climax");
-
-    // Impact Text
-    tl.to("#final-impact", { duration: 0.01, opacity: 1 }, "climax");
-    tl.fromTo("#final-impact",
-        { scale: 2, opacity: 0 },
-        { duration: 0.6, scale: 1, opacity: 1, ease: "power4.out" },
-    "climax");
-
-    // Fade out flash
-    tl.to("#flash-effect", { duration: 1.5, opacity: 0 }, "climax+=0.1");
-
-    // Digitação
-    tl.call(() => {
-        const impactSpan = document.getElementById('impact-text-span');
-        const textToType = "VAI CORINTHIANS";
-        let i = 0;
-        impactSpan.innerText = "";
-        
-        function typeIntro() {
-            if (i < textToType.length) {
-                impactSpan.innerText += textToType.charAt(i);
-                i++;
-                setTimeout(typeIntro, 80); 
-            }
-        }
-        typeIntro();
-    }, null, "climax+=0.2");
-
-    // Hold final
-    tl.to({}, { duration: 2.5 });
-}
-
-// --- 4. INICIALIZAÇÃO DO APP ---
+// --- 3. INICIALIZAÇÃO DO APP ---
 let appInitialized = false;
 
 function initApp() {
     if (appInitialized) return;
     appInitialized = true;
+
+    initThreeJS();
 
     const app = document.getElementById('app-container');
     app.style.display = 'flex';
