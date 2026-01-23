@@ -72,118 +72,6 @@ body, html {
     font-weight: bold;
 }
 
-/* --- INTRO OVERLAY (CARREGAMENTO) --- */
-#intro-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: var(--c-black);
-    z-index: 5000;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-
-.intro-content-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.intro-logo-container {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60vw;
-    max-width: 300px;
-    height: auto;
-    opacity: 0; 
-    z-index: 5001;
-}
-
-.intro-logo-img {
-    width: 100%;
-    height: auto;
-    object-fit: contain;
-    filter: drop-shadow(0 0 30px rgba(212, 175, 55, 0.4));
-}
-
-.intro-text-wrapper {
-    position: absolute;
-    top: 40%; 
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 5002;
-    text-align: center;
-}
-
-.intro-text {
-    font-family: var(--font-primary);
-    font-size: clamp(1.5rem, 5vw, 2.5rem);
-    color: var(--c-white);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    opacity: 0;
-    text-shadow: 0 0 10px rgba(0,0,0,0.8);
-    width: 90%;
-}
-
-.intro-impact {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90%;
-    text-align: center;
-    font-family: var(--font-primary);
-    font-size: clamp(2.5rem, 10vw, 4.5rem);
-    font-weight: 700;
-    color: var(--c-white);
-    text-shadow: 
-        0 2px 4px rgba(0,0,0,0.8),
-        0 0 30px rgba(212, 175, 55, 0.6);
-    opacity: 0;
-    line-height: 1;
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 5003; 
-}
-
-/* Cursor piscante específico para a intro */
-.intro-cursor {
-    display: inline-block;
-    width: 4px;
-    height: 0.8em;
-    background-color: var(--c-gold);
-    margin-left: 5px;
-    vertical-align: middle;
-    animation: blink 0.5s infinite;
-}
-
-/* Efeito de flash na tela */
-.flash-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: white;
-    opacity: 0;
-    pointer-events: none;
-    z-index: 5005; /* Acima de tudo */
-}
-
 /* --- APP CONTAINER (MOBILE) --- */
 #app-container {
     position: relative;
@@ -241,6 +129,17 @@ body, html {
 
 .brand-highlight {
     color: var(--c-gold);
+}
+
+.header-subtitle {
+    font-family: var(--font-secondary);
+    font-size: 0.85rem;
+    color: var(--c-silver);
+    text-align: right;
+    max-width: 150px;
+    line-height: 1.2;
+    font-weight: 400;
+    letter-spacing: 0.5px;
 }
 
 /* Footer com Botão */
@@ -589,7 +488,6 @@ body, html {
 @media screen and (min-width: 1025px) {
     #desktop-gate { display: flex !important; }
     #app-container { display: none !important; }
-    #intro-overlay { display: none !important; }
     #lang-modal { display: none !important; }
 }
 
