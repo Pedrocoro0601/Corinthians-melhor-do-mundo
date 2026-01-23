@@ -5,9 +5,11 @@
     --c-white: #ffffff;
     --c-gold: #D4AF37; /* Dourado Premium */
     --c-silver: #A0A0A0;
+    --c-modal-bg: rgba(10, 10, 10, 0.95);
     --font-primary: 'Oswald', sans-serif;
     --font-secondary: 'Roboto', sans-serif;
     --header-height: 70px;
+    --footer-height: 80px;
 }
 
 * {
@@ -241,29 +243,45 @@ body, html {
     color: var(--c-gold);
 }
 
-.live-indicator {
-    width: 30px; 
-    height: 30px; 
-    border: 2px solid rgba(255,255,255,0.2); 
-    border-radius: 50%; 
-    display: flex; 
-    align-items: center; 
+/* Footer com Botão */
+.app-footer {
+    height: var(--footer-height);
+    width: 100%;
+    display: flex;
     justify-content: center;
+    align-items: center;
+    background: linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0));
+    pointer-events: auto;
+    padding-bottom: 20px;
 }
 
-.live-dot {
-    width: 6px; 
-    height: 6px; 
-    background: var(--c-gold); 
-    border-radius: 50%;
-    box-shadow: 0 0 10px var(--c-gold);
-    animation: pulse 2s infinite;
+.action-btn {
+    background: rgba(212, 175, 55, 0.15);
+    border: 1px solid var(--c-gold);
+    color: var(--c-white);
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    transition: all 0.3s ease;
+    cursor: pointer;
 }
 
-@keyframes pulse {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.5); opacity: 0.5; }
-    100% { transform: scale(1); opacity: 1; }
+.action-btn:active {
+    background: var(--c-gold);
+    color: var(--c-black);
+    transform: scale(0.95);
+}
+
+.icon-list {
+    font-size: 1.2rem;
 }
 
 /* Conteúdo Principal */
@@ -277,7 +295,7 @@ body, html {
     pointer-events: none;
 }
 
-/* Lista de Idiomas */
+/* Lista de Idiomas (Scroll Infinito) */
 #world-shout-container {
     position: absolute;
     width: 100%;
@@ -383,6 +401,183 @@ body, html {
     font-style: italic;
 }
 
+/* --- MODAL (LISTA COMPLETA) --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 8000;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end; /* Sheet style on mobile */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-bg-blur {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(8px);
+}
+
+.modal-container {
+    position: relative;
+    width: 100%;
+    height: 90%; /* Ocupa 90% da altura */
+    background: var(--c-dark-grey);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    box-shadow: 0 -5px 30px rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    border-top: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.modal-overlay.open .modal-container {
+    transform: translateY(0);
+}
+
+.modal-header {
+    padding: 20px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.modal-title {
+    font-family: var(--font-primary);
+    color: var(--c-gold);
+    font-size: 1.5rem;
+    text-transform: uppercase;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--c-white);
+    font-size: 2.5rem;
+    line-height: 0.8;
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+.search-box {
+    padding: 15px 25px;
+    position: relative;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+#lang-search {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--c-white);
+    padding: 12px 40px 12px 15px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: var(--font-secondary);
+}
+
+#lang-search:focus {
+    outline: none;
+    border-color: var(--c-gold);
+}
+
+.search-icon {
+    position: absolute;
+    right: 35px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--c-silver);
+}
+
+.modal-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 25px 40px 25px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.modal-footer-gradient {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background: linear-gradient(to top, var(--c-dark-grey), transparent);
+    pointer-events: none;
+}
+
+/* Estilo dos itens da lista */
+.list-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 15px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    animation: fadeIn 0.3s ease;
+}
+
+.list-item-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.list-country {
+    font-family: var(--font-primary);
+    color: var(--c-gold);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.list-lang {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--c-white);
+}
+
+.list-item-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    max-width: 50%;
+    text-align: right;
+}
+
+.list-phrase {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 2px;
+}
+
+.list-pronunciation {
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--c-silver);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* Logo SVG Simplificado para o Gate */
 .cp-logo-svg {
     width: 100%;
@@ -395,6 +590,7 @@ body, html {
     #desktop-gate { display: flex !important; }
     #app-container { display: none !important; }
     #intro-overlay { display: none !important; }
+    #lang-modal { display: none !important; }
 }
 
 @media screen and (max-width: 1024px) {
